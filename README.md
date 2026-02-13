@@ -24,29 +24,30 @@ MoriaJS is a batteries-included full-stack framework built on **[Fastify](https:
 - 🎨 **UI components** — Toaster notifications, modals, and layout primitives
 - 📦 **Monorepo** — pnpm workspaces + Turborepo for fast, organized development
 
+## Status
+
+> ⚠️ **Early Development** — MoriaJS is not yet published to npm. To try it out, clone the repository and work within the monorepo. Packages will be published to npm once the framework is stable.
+
 ## Quick Start
 
-### Create a new project
-
 ```bash
-npx create-moria my-app
-cd my-app
+# Clone the repo
+git clone https://github.com/guntur-d/moriajs.git
+cd moriajs
+
+# Install dependencies
 pnpm install
+
+# Build all packages
+pnpm build
+
+# Run the playground app
+cd apps/playground
 pnpm dev
+# → Server running at http://localhost:3000
 ```
 
-The scaffolder will ask you to choose:
-- **Language**: TypeScript or JavaScript
-- **Database**: SQLite (local dev) or PostgreSQL (production)
-
-### Manual setup
-
-```bash
-mkdir my-app && cd my-app
-pnpm init
-pnpm add @moriajs/core @moriajs/renderer @moriajs/db @moriajs/auth @moriajs/ui mithril
-pnpm add -D @moriajs/cli typescript @types/mithril
-```
+The playground app at `apps/playground/` is a working example that imports `@moriajs/core` and starts a Fastify server. Use it as a reference or starting point.
 
 ## Usage
 
@@ -283,15 +284,15 @@ moria generate     # Generate routes, components, models
 
 ## Packages
 
-| Package | Description | npm |
-|---------|-------------|-----|
-| `@moriajs/core` | Fastify server, config, plugin system | [![npm](https://img.shields.io/npm/v/@moriajs/core)](https://npmjs.com/package/@moriajs/core) |
-| `@moriajs/renderer` | SSR/CSR hybrid rendering engine | [![npm](https://img.shields.io/npm/v/@moriajs/renderer)](https://npmjs.com/package/@moriajs/renderer) |
-| `@moriajs/db` | Kysely database adapters (PG + SQLite) | [![npm](https://img.shields.io/npm/v/@moriajs/db)](https://npmjs.com/package/@moriajs/db) |
-| `@moriajs/auth` | JWT + httpOnly cookie authentication | [![npm](https://img.shields.io/npm/v/@moriajs/auth)](https://npmjs.com/package/@moriajs/auth) |
-| `@moriajs/cli` | Dev, build, and generate commands | [![npm](https://img.shields.io/npm/v/@moriajs/cli)](https://npmjs.com/package/@moriajs/cli) |
-| `@moriajs/ui` | Toaster, Modal, and UI primitives | [![npm](https://img.shields.io/npm/v/@moriajs/ui)](https://npmjs.com/package/@moriajs/ui) |
-| `create-moria` | Project scaffolder (`npx create-moria`) | [![npm](https://img.shields.io/npm/v/create-moria)](https://npmjs.com/package/create-moria) |
+| Package | Description |
+|---------|-------------|
+| `@moriajs/core` | Fastify server, config, plugin system |
+| `@moriajs/renderer` | SSR/CSR hybrid rendering engine |
+| `@moriajs/db` | Kysely database adapters (PG + SQLite) |
+| `@moriajs/auth` | JWT + httpOnly cookie authentication |
+| `@moriajs/cli` | Dev, build, and generate commands |
+| `@moriajs/ui` | Toaster, Modal, and UI primitives |
+| `create-moria` | Project scaffolder (coming soon) |
 
 ## Tech Stack
 
@@ -307,20 +308,12 @@ moria generate     # Generate routes, components, models
 
 ## Development
 
+See [Quick Start](#quick-start) to get the repo running. The monorepo is managed with pnpm workspaces + Turborepo:
+
 ```bash
-# Clone the repo
-git clone https://github.com/guntur-d/moriajs.git
-cd moriajs
-
-# Install dependencies
-pnpm install
-
-# Build all packages
-pnpm build
-
-# Run the playground
-cd apps/playground
-pnpm dev
+pnpm build          # Build all packages
+pnpm turbo typecheck # Type-check all packages
+pnpm turbo dev       # Run all dev servers
 ```
 
 ## Documentation
