@@ -1,0 +1,37 @@
+{
+    "name": "@moriajs/db",
+    "version": "0.0.1",
+    "type": "module",
+    "description": "MoriaJS database — Kysely adapters with kysely-schema integration",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "typecheck": "tsc --noEmit",
+        "clean": "rimraf dist .turbo"
+    },
+    "dependencies": {
+        "kysely": "^0.27.0"
+    },
+    "optionalDependencies": {
+        "pg": "^8.13.0",
+        "better-sqlite3": "^11.0.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.0",
+        "rimraf": "^6.0.0",
+        "@types/node": "^22.0.0",
+        "@types/better-sqlite3": "^7.6.0"
+    },
+    "peerDependencies": {
+        "@moriajs/core": "workspace:*"
+    },
+    "license": "MIT"
+}

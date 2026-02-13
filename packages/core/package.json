@@ -1,0 +1,35 @@
+{
+    "name": "@moriajs/core",
+    "version": "0.0.1",
+    "type": "module",
+    "description": "MoriaJS framework core — Fastify server, Vite integration, and routing",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "typecheck": "tsc --noEmit",
+        "clean": "rimraf dist .turbo"
+    },
+    "dependencies": {
+        "fastify": "^5.2.0",
+        "@fastify/cors": "^11.0.0",
+        "@fastify/cookie": "^11.0.0",
+        "@fastify/compress": "^8.0.0",
+        "@fastify/static": "^9.0.0",
+        "@fastify/helmet": "^13.0.0",
+        "pino-pretty": "^13.0.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.0",
+        "rimraf": "^6.0.0",
+        "@types/node": "^22.0.0"
+    },
+    "license": "MIT"
+}

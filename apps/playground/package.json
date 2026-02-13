@@ -1,0 +1,25 @@
+{
+    "name": "@moriajs/playground",
+    "version": "0.0.1",
+    "type": "module",
+    "private": true,
+    "description": "MoriaJS internal playground for testing framework features",
+    "scripts": {
+        "dev": "tsx src/index.ts",
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "clean": "rimraf dist .turbo"
+    },
+    "dependencies": {
+        "@moriajs/core": "workspace:*",
+        "@moriajs/renderer": "workspace:*",
+        "@moriajs/db": "workspace:*",
+        "@moriajs/auth": "workspace:*"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.0",
+        "tsx": "^4.19.0",
+        "rimraf": "^6.0.0",
+        "@types/node": "^22.0.0"
+    }
+}

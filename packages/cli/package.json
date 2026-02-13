@@ -1,0 +1,33 @@
+{
+    "name": "@moriajs/cli",
+    "version": "0.0.1",
+    "type": "module",
+    "description": "MoriaJS CLI — dev, build, and generate commands",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "bin": {
+        "moria": "./dist/bin.js"
+    },
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "typecheck": "tsc --noEmit",
+        "clean": "rimraf dist .turbo"
+    },
+    "dependencies": {
+        "cac": "^6.7.0",
+        "picocolors": "^1.1.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.0",
+        "rimraf": "^6.0.0",
+        "@types/node": "^22.0.0"
+    },
+    "license": "MIT"
+}

@@ -1,0 +1,23 @@
+{
+  "name": "moriajs",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "A full-stack meta-framework for Mithril.js built on Fastify",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "clean": "turbo clean",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

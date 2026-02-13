@@ -1,0 +1,28 @@
+{
+    "name": "create-moria",
+    "version": "0.0.1",
+    "type": "module",
+    "description": "Create a new MoriaJS project",
+    "main": "./dist/index.js",
+    "bin": {
+        "create-moria": "./dist/bin.js"
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "typecheck": "tsc --noEmit",
+        "clean": "rimraf dist .turbo"
+    },
+    "dependencies": {
+        "cac": "^6.7.0",
+        "picocolors": "^1.1.0",
+        "prompts": "^2.4.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.0",
+        "rimraf": "^6.0.0",
+        "@types/node": "^22.0.0",
+        "@types/prompts": "^2.4.0"
+    },
+    "license": "MIT"
+}
