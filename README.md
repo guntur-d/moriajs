@@ -26,9 +26,29 @@ MoriaJS is a batteries-included full-stack framework built on **[Fastify](https:
 
 ## Status
 
-> ⚠️ **Early Development** — MoriaJS is not yet published to npm. To try it out, clone the repository and work within the monorepo. Packages will be published to npm once the framework is stable.
+> ⚠️ **Development Status**
+> This package is in early development and undergoing active testing. Expect breaking changes between minor versions. Not recommended for production use yet.
+
+
 
 ## Quick Start
+
+Create a new MoriaJS project using the interactive scaffolder:
+
+```bash
+# Create a new project
+npx create-moria@latest my-app
+
+# Start developing
+cd my-app
+npm install
+npm run dev
+# → Server running at http://localhost:3000
+```
+
+## Development
+
+To contribute to MoriaJS or work on the framework itself:
 
 ```bash
 # Clone the repo
@@ -45,6 +65,14 @@ pnpm build
 cd apps/playground
 pnpm dev
 # → Server running at http://localhost:3000
+```
+
+The monorepo is managed with pnpm workspaces + Turborepo:
+
+```bash
+pnpm build          # Build all packages
+pnpm turbo typecheck # Type-check all packages
+pnpm turbo dev       # Run all dev servers
 ```
 
 The playground app at `apps/playground/` is a working example that imports `@moriajs/core` and starts a Fastify server. Use it as a reference or starting point.
@@ -306,15 +334,7 @@ moria generate     # Generate routes, components, models
 | Monorepo | pnpm workspaces + [Turborepo](https://turbo.build) |
 | Language | TypeScript |
 
-## Development
 
-See [Quick Start](#quick-start) to get the repo running. The monorepo is managed with pnpm workspaces + Turborepo:
-
-```bash
-pnpm build          # Build all packages
-pnpm turbo typecheck # Type-check all packages
-pnpm turbo dev       # Run all dev servers
-```
 
 ## Documentation
 

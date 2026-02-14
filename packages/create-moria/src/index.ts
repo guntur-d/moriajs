@@ -16,7 +16,7 @@ import prompts from 'prompts';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const VERSION = '0.0.1';
+const VERSION = '0.1.0';
 
 export const cli = cac('create-moria');
 
