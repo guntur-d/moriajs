@@ -1,6 +1,6 @@
 {
     "name": "create-moria",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "description": "Create a new MoriaJS project",
     "main": "./dist/index.js",
@@ -24,5 +24,18 @@
         "@types/node": "^22.0.0",
         "@types/prompts": "^2.4.0"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "author": "Guntur-D <guntur.d.npm@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/guntur-d/moriajs.git",
+        "directory": "packages/create-moria"
+    },
+    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/create-moria#readme",
+    "bugs": {
+        "url": "https://github.com/guntur-d/moriajs/issues"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
 }

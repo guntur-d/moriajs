@@ -1,6 +1,6 @@
 {
     "name": "@moriajs/ui",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "description": "MoriaJS UI — Toaster, modals, and component primitives for Mithril.js",
     "main": "./dist/index.js",
@@ -25,5 +25,18 @@
     "peerDependencies": {
         "mithril": "^2.2.0"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "author": "Guntur-D <guntur.d.npm@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/guntur-d/moriajs.git",
+        "directory": "packages/ui"
+    },
+    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/ui#readme",
+    "bugs": {
+        "url": "https://github.com/guntur-d/moriajs/issues"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
 }

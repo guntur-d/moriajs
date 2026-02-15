@@ -1,6 +1,6 @@
 {
     "name": "@moriajs/core",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "description": "MoriaJS framework core — Fastify server, Vite integration, and routing",
     "main": "./dist/index.js",
@@ -31,5 +31,18 @@
         "rimraf": "^6.0.0",
         "@types/node": "^22.0.0"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "author": "Guntur-D <guntur.d.npm@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/guntur-d/moriajs.git",
+        "directory": "packages/core"
+    },
+    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/core#readme",
+    "bugs": {
+        "url": "https://github.com/guntur-d/moriajs/issues"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
 }

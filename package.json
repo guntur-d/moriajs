@@ -1,9 +1,19 @@
 {
   "name": "moriajs",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.1",
+  "private": false,
   "type": "module",
   "description": "A full-stack meta-framework for Mithril.js built on Fastify",
+  "license": "MIT",
+  "author": "Guntur-D <guntur.d.npm@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guntur-d/moriajs.git"
+  },
+  "homepage": "https://github.com/guntur-d/moriajs#readme",
+  "bugs": {
+    "url": "https://github.com/guntur-d/moriajs/issues"
+  },
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
@@ -16,7 +26,7 @@
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   },
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.29.3",
   "engines": {
     "node": ">=20.0.0"
   }

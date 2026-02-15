@@ -1,6 +1,6 @@
 {
     "name": "@moriajs/db",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "description": "MoriaJS database — Kysely adapters with kysely-schema integration",
     "main": "./dist/index.js",
@@ -33,5 +33,18 @@
     "peerDependencies": {
         "@moriajs/core": "workspace:*"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "author": "Guntur-D <guntur.d.npm@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/guntur-d/moriajs.git",
+        "directory": "packages/db"
+    },
+    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/db#readme",
+    "bugs": {
+        "url": "https://github.com/guntur-d/moriajs/issues"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
 }
