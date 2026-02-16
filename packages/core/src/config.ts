@@ -3,6 +3,12 @@
  * Used in `moria.config.ts` files in user projects.
  */
 export interface MoriaConfig {
+    /** Application mode */
+    mode?: 'development' | 'production';
+
+    /** Project root directory (auto-detected if not set) */
+    rootDir?: string;
+
     /** Server configuration */
     server?: {
         /** Port to listen on (default: 3000) */
@@ -44,6 +50,14 @@ export interface MoriaConfig {
     vite?: {
         /** Path to Vite config file */
         configFile?: string;
+        /** Client entry point (default: '/src/entry-client.ts') */
+        clientEntry?: string;
+    };
+
+    /** File-based routing configuration */
+    routes?: {
+        /** Routes directory relative to rootDir (default: 'src/routes') */
+        dir?: string;
     };
 }
 

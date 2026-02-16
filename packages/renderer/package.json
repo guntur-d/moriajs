@@ -27,9 +27,6 @@
         "@types/mithril": "^2.2.0",
         "@types/node": "^22.0.0"
     },
-    "peerDependencies": {
-        "@moriajs/core": "workspace:*"
-    },
     "license": "MIT",
     "author": "Guntur-D <guntur.d.npm@gmail.com>",
     "repository": {

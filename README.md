@@ -17,6 +17,8 @@ MoriaJS is a batteries-included full-stack framework built on **[Fastify](https:
 
 - ⚡ **Fastify-powered** — High performance Node.js server with plugin architecture
 - 🎯 **Type-safe** — Written in TypeScript, supports both TS and JS projects
+- 🔥 **Vite + HMR** — Vite dev server with Hot Module Replacement built-in
+- 📁 **File-based routing** — Automatic route discovery from `src/routes/`
 - 🔄 **Hybrid rendering** — Server-side rendering + client-side hydration via `mithril-node-render`
 - 🗄️ **Database-agnostic** — Kysely ORM with PostgreSQL (production) and SQLite (development) adapters
 - 🔐 **Auth built-in** — JWT + httpOnly cookies with pluggable auth providers
@@ -86,20 +88,14 @@ The playground app at `apps/playground/` is a working example that imports `@mor
 import { createApp, defineConfig } from '@moriajs/core';
 
 const config = defineConfig({
+  mode: 'development',
   server: { port: 3000 },
-  database: {
-    adapter: 'sqlite',
-    filename: './dev.db',
-  },
 });
 
 const app = await createApp({ config });
-
-app.server.get('/', async () => {
-  return { message: 'Hello from MoriaJS!' };
-});
-
 await app.listen();
+// → Fastify + Vite dev server with HMR
+// → Routes auto-discovered from src/routes/
 ```
 
 ### 2. Configuration
@@ -111,6 +107,7 @@ Create a `moria.config.ts` in your project root:
 import { defineConfig } from '@moriajs/core';
 
 export default defineConfig({
+  mode: 'development',      // 'development' | 'production'
   server: {
     port: 3000,
     host: '0.0.0.0',
@@ -120,8 +117,14 @@ export default defineConfig({
       credentials: true,
     },
   },
+  vite: {
+    clientEntry: '/src/entry-client.ts',  // Client bundle entry
+  },
+  routes: {
+    dir: 'src/routes',      // Route directory (default)
+  },
   database: {
-    adapter: 'pg',       // 'pg' | 'sqlite'
+    adapter: 'pg',           // 'pg' | 'sqlite'
     url: process.env.DATABASE_URL,
   },
   auth: {
@@ -132,7 +135,46 @@ export default defineConfig({
 });
 ```
 
-### 3. Database
+### 3. File-Based Routing
+
+Drop route files in `src/routes/` and they're automatically registered:
+
+```
+src/routes/
+├── api/
+│   ├── hello.ts            → GET /api/hello
+│   └── users/
+│       └── [id].ts         → GET /api/users/:id
+└── pages/
+    ├── index.ts            → GET /
+    └── about.ts            → GET /about
+```
+
+Each route file exports named HTTP method handlers:
+
+```ts
+// src/routes/api/hello.ts
+import type { FastifyRequest, FastifyReply } from 'fastify';
+
+export function GET(request: FastifyRequest, reply: FastifyReply) {
+  return { message: 'Hello from MoriaJS!' };
+}
+
+export function POST(request: FastifyRequest, reply: FastifyReply) {
+  return { created: true };
+}
+```
+
+Dynamic segments use brackets — `[param]` becomes `:param`:
+
+```ts
+// src/routes/api/users/[id].ts
+export function GET(request: FastifyRequest<{ Params: { id: string } }>) {
+  return { userId: request.params.id };
+}
+```
+
+### 4. Database
 
 MoriaJS uses [Kysely](https://kysely.dev) for type-safe database queries with [kysely-schema](https://github.com/guntur-d/kysely-schema) for schema-first development.
 
@@ -161,7 +203,7 @@ await app.use(createDatabasePlugin({
 }));
 ```
 
-### 4. Authentication
+### 5. Authentication
 
 JWT-based auth with httpOnly cookies — secure by default.
 
@@ -200,7 +242,7 @@ app.server.delete('/api/users/:id',
 );
 ```
 
-### 5. Server-Side Rendering
+### 6. Server-Side Rendering
 
 Render Mithril.js components on the server with automatic hydration.
 
@@ -229,7 +271,7 @@ const data = getHydrationData();
 await hydrate(App, document.getElementById('app')!);
 ```
 
-### 6. UI Components
+### 7. UI Components
 
 Built-in Mithril.js components — CSS-framework agnostic.
 
@@ -273,7 +315,7 @@ const Page = {
 };
 ```
 
-### 7. Plugins
+### 8. Plugins
 
 Extend MoriaJS with custom plugins.
 
@@ -314,11 +356,11 @@ moria generate     # Generate routes, components, models
 
 | Package | Description |
 |---------|-------------|
-| `@moriajs/core` | Fastify server, config, plugin system |
-| `@moriajs/renderer` | SSR/CSR hybrid rendering engine |
+| `@moriajs/core` | Fastify server, Vite integration, file-based routing, config, plugin system |
+| `@moriajs/renderer` | SSR/CSR hybrid rendering engine with dev/prod mode |
 | `@moriajs/db` | Kysely database adapters (PG + SQLite) |
 | `@moriajs/auth` | JWT + httpOnly cookie authentication |
-| `@moriajs/cli` | Dev, build, and generate commands |
+| `@moriajs/cli` | Dev server, production build, and generate commands |
 | `@moriajs/ui` | Toaster, Modal, and UI primitives |
 | `create-moria` | Project scaffolder (coming soon) |
 
@@ -341,6 +383,8 @@ moria generate     # Generate routes, components, models
 > 📝 Full documentation is coming soon. For now, each package's source code is well-documented with JSDoc comments and TypeScript types.
 
 - [Configuration](./packages/core/src/config.ts) — All config options
+- [Vite Integration](./packages/core/src/vite.ts) — Dev server + HMR
+- [File-Based Routing](./packages/core/src/router.ts) — Route conventions
 - [Plugin API](./packages/core/src/plugins.ts) — Creating plugins
 - [Database](./packages/db/src/index.ts) — Database adapters
 - [Auth](./packages/auth/src/index.ts) — Authentication system
@@ -357,9 +401,9 @@ moria generate     # Generate routes, components, models
 - [x] UI component library
 - [x] CLI with commands
 - [x] Project scaffolder
-- [ ] Vite integration with HMR
-- [ ] File-based routing
-- [ ] Full SSR/CSR hydration
+- [x] Vite integration with HMR
+- [x] File-based routing
+- [x] Full SSR/CSR hydration
 - [ ] kysely-schema integration
 - [ ] OAuth providers
 - [ ] Middleware system

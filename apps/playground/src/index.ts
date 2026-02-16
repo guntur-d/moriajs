@@ -6,8 +6,13 @@
  */
 
 import { createApp, defineConfig } from '@moriajs/core';
+import path from 'node:path';
+
+const __appRoot = path.resolve(import.meta.dirname, '..');
 
 const config = defineConfig({
+    mode: 'development',
+    rootDir: __appRoot,
     server: {
         port: 3000,
         logLevel: 'info',
@@ -16,19 +21,6 @@ const config = defineConfig({
 
 async function main() {
     const app = await createApp({ config });
-
-    // Example route
-    app.server.get('/', async () => {
-        return {
-            framework: 'MoriaJS',
-            version: '0.0.1',
-            message: '🏔️ Welcome to MoriaJS — The Mithril.js Meta-Framework',
-            routes: {
-                health: '/health',
-                api: '/api (coming soon)',
-            },
-        };
-    });
 
     // Start the server
     const address = await app.listen();

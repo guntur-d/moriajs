@@ -7,10 +7,35 @@
 
 import { cac } from 'cac';
 import pc from 'picocolors';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import fs from 'node:fs';
 
-const VERSION = '0.0.1';
+const VERSION = '0.1.1';
 
 export const cli = cac('moria');
+
+/**
+ * Attempt to load moria.config.ts from the current working directory.
+ */
+async function loadConfig(): Promise<Record<string, unknown>> {
+    const cwd = process.cwd();
+    const configFiles = ['moria.config.ts', 'moria.config.js', 'moria.config.mjs'];
+
+    for (const file of configFiles) {
+        const configPath = path.resolve(cwd, file);
+        if (fs.existsSync(configPath)) {
+            try {
+                const mod = await import(pathToFileURL(configPath).href);
+                return mod.default ?? mod;
+            } catch {
+                // Config load failed, continue
+            }
+        }
+    }
+
+    return {};
+}
 
 // ─── dev ────────────────────────────────────────────
 cli
@@ -20,11 +45,35 @@ cli
     .action(async (options) => {
         console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
         console.log(pc.green('Starting dev server...'));
-        console.log(pc.dim(`  → http://${options.host}:${options.port}`));
         console.log();
 
-        // TODO: Phase 3 — Start Fastify + Vite dev server
-        console.log(pc.yellow('⚠ Dev server not yet implemented. Coming in Phase 3.'));
+        try {
+            const { createApp } = await import('@moriajs/core');
+            const userConfig = await loadConfig();
+
+            const app = await createApp({
+                config: {
+                    ...userConfig,
+                    mode: 'development',
+                    rootDir: process.cwd(),
+                    server: {
+                        ...(userConfig.server as Record<string, unknown> ?? {}),
+                        port: Number(options.port),
+                        host: options.host,
+                    },
+                },
+            });
+
+            const address = await app.listen();
+            console.log();
+            console.log(pc.green('  ✓ ') + pc.bold('Dev server ready'));
+            console.log(pc.dim(`    → ${address}`));
+            console.log(pc.dim('    → HMR enabled via Vite'));
+            console.log();
+        } catch (err) {
+            console.error(pc.red('Failed to start dev server:'), err);
+            process.exit(1);
+        }
     });
 
 // ─── build ──────────────────────────────────────────
@@ -35,8 +84,26 @@ cli
         console.log(pc.green('Building for production...'));
         console.log();
 
-        // TODO: Phase 3 — Vite production build
-        console.log(pc.yellow('⚠ Build not yet implemented. Coming in Phase 3.'));
+        try {
+            const { build } = await import('vite');
+
+            // Client build
+            console.log(pc.dim('  → Building client bundle...'));
+            await build({
+                root: process.cwd(),
+                build: {
+                    outDir: 'dist/client',
+                    emptyOutDir: true,
+                },
+            });
+            console.log(pc.green('  ✓ ') + 'Client build complete');
+
+            console.log();
+            console.log(pc.green('  ✓ ') + pc.bold('Build complete'));
+        } catch (err) {
+            console.error(pc.red('Build failed:'), err);
+            process.exit(1);
+        }
     });
 
 // ─── start ──────────────────────────────────────────
@@ -46,11 +113,31 @@ cli
     .action(async (options) => {
         console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
         console.log(pc.green('Starting production server...'));
-        console.log(pc.dim(`  → port ${options.port}`));
         console.log();
 
-        // TODO: Phase 3 — Start Fastify production server
-        console.log(pc.yellow('⚠ Production server not yet implemented. Coming in Phase 3.'));
+        try {
+            const { createApp } = await import('@moriajs/core');
+            const userConfig = await loadConfig();
+
+            const app = await createApp({
+                config: {
+                    ...userConfig,
+                    mode: 'production',
+                    rootDir: process.cwd(),
+                    server: {
+                        ...(userConfig.server as Record<string, unknown> ?? {}),
+                        port: Number(options.port),
+                    },
+                },
+            });
+
+            const address = await app.listen();
+            console.log(pc.green('  ✓ ') + pc.bold('Production server running'));
+            console.log(pc.dim(`    → ${address}`));
+        } catch (err) {
+            console.error(pc.red('Failed to start server:'), err);
+            process.exit(1);
+        }
     });
 
 // ─── generate ───────────────────────────────────────

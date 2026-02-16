@@ -18,6 +18,12 @@ export interface RenderOptions {
     initialData?: Record<string, unknown>;
     /** HTML lang attribute */
     lang?: string;
+    /** Application mode — affects script injection */
+    mode?: 'development' | 'production';
+    /** Client entry point for dev mode (default: '/src/entry-client.ts') */
+    clientEntry?: string;
+    /** CSS stylesheet links to inject in the head */
+    cssLinks?: string[];
 }
 
 /**
@@ -32,6 +38,7 @@ export interface RenderOptions {
  *
  * const html = await renderToString(MyPage, {
  *   title: 'Home — My App',
+ *   mode: 'development',
  *   initialData: { user: { name: 'Guntur' } },
  * });
  * ```
@@ -56,9 +63,29 @@ export async function renderToString(
             .join('\n    ')
         : '';
 
+    const cssLinkTags = options.cssLinks
+        ? options.cssLinks
+            .map((href) => `<link rel="stylesheet" href="${href}">`)
+            .join('\n    ')
+        : '';
+
     const hydrationScript = options.initialData
         ? `<script>window.__MORIA_DATA__ = ${JSON.stringify(options.initialData)};</script>`
         : '';
+
+    // Dev vs production script tags
+    const mode = options.mode ?? 'production';
+    const clientEntry = options.clientEntry ?? '/src/entry-client.ts';
+
+    let scriptTags: string;
+    if (mode === 'development') {
+        scriptTags = [
+            `<script type="module" src="/@vite/client"></script>`,
+            `<script type="module" src="${clientEntry}"></script>`,
+        ].join('\n    ');
+    } else {
+        scriptTags = `<script type="module" src="/assets/entry-client.js"></script>`;
+    }
 
     return `<!DOCTYPE html>
 <html lang="${options.lang ?? 'en'}">
@@ -66,12 +93,13 @@ export async function renderToString(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     ${metaTags}
+    ${cssLinkTags}
     <title>${options.title ?? 'MoriaJS App'}</title>
   </head>
   <body>
     <div id="app">${componentHtml}</div>
     ${hydrationScript}
-    <script type="module" src="/src/entry-client.ts"></script>
+    ${scriptTags}
   </body>
 </html>`;
 }
