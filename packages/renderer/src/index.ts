@@ -50,12 +50,12 @@ export async function renderToString(
 ): Promise<string> {
     // mithril-node-render has no type declarations — use string import
     const renderModule = await (Function('return import("mithril-node-render")')() as Promise<{ default: (vnode: unknown) => Promise<string> }>);
-    const mModule = await (Function('return import("mithril")')() as Promise<{ default: (tag: unknown) => unknown }>);
+    const mModule = await (Function('return import("mithril")')() as Promise<{ default: (tag: any, attrs?: any) => any }>);
 
     const render = renderModule.default;
     const m = mModule.default;
 
-    const componentHtml = await render(m(component));
+    const componentHtml = await render(m(component, { serverData: options.initialData ?? {} }));
 
     const metaTags = options.meta
         ? Object.entries(options.meta)
@@ -119,11 +119,15 @@ export async function renderToString(
 export async function hydrate(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     component: any,
-    container: Element
+    container: Element,
+    data?: any
 ): Promise<void> {
     const mModule = await import('mithril');
     const m = mModule.default;
-    m.mount(container, component);
+    // Wrap to pass data as attributes
+    m.mount(container, {
+        view: () => m(component, { serverData: data ?? {} })
+    });
 }
 
 /**

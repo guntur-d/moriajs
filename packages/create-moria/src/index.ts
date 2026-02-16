@@ -19,7 +19,7 @@ import prompts from 'prompts';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const VERSION = '0.3.0';
+const VERSION = '0.3.5';
 
 export const cli = cac('create-moria');
 
@@ -90,6 +90,9 @@ export default defineConfig({
   database: {
 ${dbConfig}
   },
+  vite: {
+    clientEntry: '/src/entry-client.ts',
+  },
 });
 `;
 }
@@ -106,6 +109,9 @@ export default {
   },
   database: {
 ${dbConfig}
+  },
+  vite: {
+    clientEntry: '/src/entry-client.js',
   },
 };
 `;
@@ -158,7 +164,25 @@ const data = getHydrationData();
 const root = document.getElementById('app');
 
 if (root) {
-    hydrate(HomePage, root, data ?? undefined);
+    hydrate(HomePage, root, data);
+}
+`;
+}
+
+function srcEntryClientJs(): string {
+    return `/**
+ * Client-side entry point.
+ * Hydrates the server-rendered page to make it interactive.
+ */
+
+import { hydrate, getHydrationData } from '@moriajs/renderer';
+import HomePage from './routes/pages/index.js';
+
+const data = getHydrationData();
+const root = document.getElementById('app');
+
+if (root) {
+    hydrate(HomePage, root, data);
 }
 `;
 }
@@ -192,6 +216,57 @@ export function GET(_request: FastifyRequest, _reply: FastifyReply) {
 `;
 }
 
+function srcApiHealthTs(): string {
+    return `/**
+ * GET /api/health
+ */
+
+import type { FastifyRequest, FastifyReply } from 'fastify';
+
+export function GET(_request: FastifyRequest, _reply: FastifyReply) {
+    return { status: 'ok', uptime: process.uptime() };
+}
+`;
+}
+
+function srcApiUsersTs(): string {
+    return `/**
+ * GET /api/users/:id
+ */
+
+import type { FastifyRequest, FastifyReply } from 'fastify';
+
+export function GET(request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) {
+    const { id } = request.params;
+    return {
+        id,
+        name: \`User \${id}\`,
+        email: \`user\${id}@example.com\`,
+    };
+}
+`;
+}
+
+function srcApiSearchTs(): string {
+    return `/**
+ * GET /api/search?q=...
+ */
+
+import type { FastifyRequest, FastifyReply } from 'fastify';
+
+export function GET(request: FastifyRequest<{ Querystring: { q?: string } }>, _reply: FastifyReply) {
+    const { q = '' } = request.query;
+    return {
+        query: q,
+        results: [
+            { id: 1, title: \`Result for \${q} 1\` },
+            { id: 2, title: \`Result for \${q} 2\` },
+        ],
+    };
+}
+`;
+}
+
 function srcApiHelloJs(): string {
     return `/**
  * GET /api/hello
@@ -201,6 +276,51 @@ export function GET(_request, _reply) {
     return {
         message: 'Hello from MoriaJS! 🏔️',
         timestamp: new Date().toISOString(),
+    };
+}
+`;
+}
+
+function srcApiHealthJs(): string {
+    return `/**
+ * GET /api/health
+ */
+
+export function GET(_request, _reply) {
+    return { status: 'ok', uptime: process.uptime() };
+}
+`;
+}
+
+function srcApiUsersJs(): string {
+    return `/**
+ * GET /api/users/:id
+ */
+
+export function GET(request, _reply) {
+    const { id } = request.params;
+    return {
+        id,
+        name: \`User \${id}\`,
+        email: \`user\${id}@example.com\`,
+    };
+}
+`;
+}
+
+function srcApiSearchJs(): string {
+    return `/**
+ * GET /api/search?q=...
+ */
+
+export function GET(request, _reply) {
+    const { q = '' } = request.query;
+    return {
+        query: q,
+        results: [
+            { id: 1, title: \`Result for \${q} 1\` },
+            { id: 2, title: \`Result for \${q} 2\` },
+        ],
     };
 }
 `;
@@ -228,22 +348,108 @@ export async function getServerData() {
 }
 
 /** Page component */
+let count = 0;
+
 export default {
     title: 'MoriaJS App',
     view(vnode: m.Vnode<{ serverData?: { title: string; features: string[] } }>) {
-        const data = vnode.attrs.serverData;
+        const data = vnode.attrs?.serverData;
         return m('main', { style: 'max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem' }, [
             m('h1', { style: 'font-size:2.5rem;margin-bottom:0.5rem' }, '🏔️ ' + (data?.title ?? 'MoriaJS')),
             m('p', { style: 'color:#666;font-size:1.1rem' }, 'Your full-stack Mithril.js app is up and running.'),
+            
+            m('div', { style: 'background:#f4f4f4;padding:1.5rem;border-radius:8px;margin:2rem 0;text-align:center' }, [
+                m('h3', { style: 'margin-top:0' }, 'Hydration Demo'),
+                m('p', 'Click the button below to verify that client-side hydration is working:'),
+                m('button', { 
+                    style: 'background:#007bff;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
+                    onclick: () => { count++; }
+                }, \`Count is \${count}\`),
+            ]),
+
             m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
             m('h2', { style: 'font-size:1.3rem' }, 'Features'),
             m('ul', { style: 'line-height:1.8' },
                 (data?.features ?? []).map((f: string) => m('li', f))
             ),
             m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+            m('h2', { style: 'font-size:1.3rem' }, 'Quick Links'),
+            m('ul', { style: 'line-height:1.8;display:flex;gap:1rem;padding:0;list-style:none' }, [
+                m('li', m('a', { href: '/api/hello', target: '_blank' }, 'Hello API')),
+                m('li', m('a', { href: '/api/health', target: '_blank' }, 'Health Check')),
+                m('li', m('a', { href: '/api/users/42', target: '_blank' }, 'User Params')),
+                m('li', m('a', { href: '/api/search?q=moria', target: '_blank' }, 'Search Query')),
+            ]),
+            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
             m('p', { style: 'color:#999;font-size:0.9rem' }, [
                 'Edit ',
                 m('code', 'src/routes/pages/index.ts'),
+                ' to get started.',
+            ]),
+        ]);
+    },
+};
+`;
+}
+
+function srcPageIndexJs(): string {
+    return `/**
+ * Home page — server-rendered Mithril.js component.
+ */
+
+import m from 'mithril';
+
+/** Server-side data loader */
+export async function getServerData() {
+    return {
+        title: 'Welcome to MoriaJS',
+        features: [
+            'File-based routing',
+            'SSR + client hydration',
+            'Middleware system',
+            'Database with Kysely',
+            'JWT authentication',
+        ],
+    };
+}
+
+/** Page component */
+let count = 0;
+
+export default {
+    title: 'MoriaJS App',
+    view(vnode) {
+        const data = vnode.attrs?.serverData;
+        return m('main', { style: 'max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem' }, [
+            m('h1', { style: 'font-size:2.5rem;margin-bottom:0.5rem' }, '🏔️ ' + (data?.title ?? 'MoriaJS')),
+            m('p', { style: 'color:#666;font-size:1.1rem' }, 'Your full-stack Mithril.js app is up and running.'),
+
+            m('div', { style: 'background:#f4f4f4;padding:1.5rem;border-radius:8px;margin:2rem 0;text-align:center' }, [
+                m('h3', { style: 'margin-top:0' }, 'Hydration Demo'),
+                m('p', 'Click the button below to verify that client-side hydration is working:'),
+                m('button', { 
+                    style: 'background:#007bff;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
+                    onclick: () => { count++; }
+                }, \`Count is \${count}\`),
+            ]),
+
+            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+            m('h2', { style: 'font-size:1.3rem' }, 'Features'),
+            m('ul', { style: 'line-height:1.8' },
+                (data?.features ?? []).map((f) => m('li', f))
+            ),
+            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+            m('h2', { style: 'font-size:1.3rem' }, 'Quick Links'),
+            m('ul', { style: 'line-height:1.8;display:flex;gap:1rem;padding:0;list-style:none' }, [
+                m('li', m('a', { href: '/api/hello', target: '_blank' }, 'Hello API')),
+                m('li', m('a', { href: '/api/health', target: '_blank' }, 'Health Check')),
+                m('li', m('a', { href: '/api/users/42', target: '_blank' }, 'User Params')),
+                m('li', m('a', { href: '/api/search?q=moria', target: '_blank' }, 'Search Query')),
+            ]),
+            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+            m('p', { style: 'color:#999;font-size:0.9rem' }, [
+                'Edit ',
+                m('code', 'src/routes/pages/index.js'),
                 ' to get started.',
             ]),
         ]);
@@ -370,11 +576,11 @@ cli
         }
 
         const template = (options?.template as string) || answers.template || 'default';
-        const lang = options?.javascript ? 'js' : (answers.language ?? 'ts');
+        const isTS = (options?.typescript as boolean) || answers.language === 'ts' || (!options?.javascript && !answers.language);
+        const lang = isTS ? 'ts' : 'js';
         const db = (options?.db as string) || answers.database || 'sqlite';
         const dir = resolve(process.cwd(), name);
         const ext = lang === 'ts' ? 'ts' : 'js';
-        const isTS = lang === 'ts';
 
         if (existsSync(dir)) {
             console.log(pc.red(`Error: directory "${name}" already exists.`));
@@ -392,6 +598,7 @@ cli
         if (template === 'default') {
             mkdirs(
                 join(dir, 'src', 'routes', 'api'),
+                join(dir, 'src', 'routes', 'api', 'users'),
                 join(dir, 'src', 'routes', 'pages')
             );
         } else {
@@ -462,9 +669,7 @@ cli
             write(join(dir, `src/index.${ext}`), isTS ? srcIndexTs() : srcIndexJs());
 
             // Client entry
-            if (isTS) {
-                write(join(dir, 'src/entry-client.ts'), srcEntryClientTs());
-            }
+            write(join(dir, `src/entry-client.${ext}`), isTS ? srcEntryClientTs() : srcEntryClientJs());
 
             // Root middleware
             write(
@@ -479,9 +684,24 @@ cli
             );
 
             // SSR page
-            if (isTS) {
-                write(join(dir, 'src/routes/pages/index.ts'), srcPageIndexTs());
-            }
+            write(
+                join(dir, `src/routes/pages/index.${ext}`),
+                isTS ? srcPageIndexTs() : srcPageIndexJs()
+            );
+
+            // Additional API routes
+            write(
+                join(dir, `src/routes/api/health.${ext}`),
+                isTS ? srcApiHealthTs() : srcApiHealthJs()
+            );
+            write(
+                join(dir, `src/routes/api/users/[id].${ext}`),
+                isTS ? srcApiUsersTs() : srcApiUsersJs()
+            );
+            write(
+                join(dir, `src/routes/api/search.${ext}`),
+                isTS ? srcApiSearchTs() : srcApiSearchJs()
+            );
         } else {
             // Minimal template — just entry + one API route
             write(join(dir, `src/index.${ext}`), isTS ? srcIndexTs() : srcIndexJs());

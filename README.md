@@ -450,7 +450,7 @@ moria generate     # Generate routes, components, models
 - [x] File-based routing
 - [x] Full SSR/CSR hydration
 - [x] Middleware system
-- [ ] Starter templates
+- [x] Starter templates
 - [ ] OAuth providers
 - [ ] kysely-schema integration
 

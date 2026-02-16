@@ -1,6 +1,6 @@
 {
     "name": "@moriajs/renderer",
-    "version": "0.3.0",
+    "version": "0.3.5",
     "type": "module",
     "description": "MoriaJS renderer — Mithril.js SSR/CSR hybrid rendering engine",
     "main": "./dist/index.js",

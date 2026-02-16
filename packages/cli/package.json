@@ -1,6 +1,6 @@
 {
     "name": "@moriajs/cli",
-    "version": "0.3.0",
+    "version": "0.3.5",
     "type": "module",
     "description": "MoriaJS CLI — dev, build, and generate commands",
     "main": "./dist/index.js",

@@ -19,6 +19,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { glob } from 'glob';
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { MoriaConfig } from './config.js';
@@ -245,7 +246,11 @@ export async function registerRoutes(
         if (route.component) {
             const component = route.component;
             const getServerData = route.getServerData;
-            const clientEntry = config.vite?.clientEntry ?? '/src/entry-client.ts';
+            // Smarter default for client entry: check for .ts then .js
+            const defaultEntry = fs.existsSync(path.join(config.rootDir || process.cwd(), 'src/entry-client.ts'))
+                ? '/src/entry-client.ts'
+                : '/src/entry-client.js';
+            const clientEntry = config.vite?.clientEntry ?? defaultEntry;
 
             server.route({
                 method: 'GET',
@@ -253,9 +258,9 @@ export async function registerRoutes(
                 preHandler,
                 handler: async (request: FastifyRequest, reply: FastifyReply) => {
                     // Load server data if available
-                    let initialData: Record<string, unknown> | undefined;
+                    let initialData: Record<string, unknown> = {};
                     if (getServerData) {
-                        initialData = (await getServerData(request)) as Record<string, unknown>;
+                        initialData = (await getServerData(request)) as Record<string, unknown> || {};
                     }
 
                     // Dynamic import of renderer (avoids circular deps)
