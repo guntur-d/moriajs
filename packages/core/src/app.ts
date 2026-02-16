@@ -81,6 +81,14 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
         contentSecurityPolicy: mode === 'production',
     });
 
+    // ─── Global Middleware ─────────────────────────────────────
+    if (config.middleware && config.middleware.length > 0) {
+        for (const mw of config.middleware) {
+            server.addHook('onRequest', mw);
+        }
+        server.log.info(`Registered ${config.middleware.length} global middleware(s)`);
+    }
+
     // Health check route
     server.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 

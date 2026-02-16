@@ -22,6 +22,7 @@ import { glob } from 'glob';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { MoriaConfig } from './config.js';
+import { scanMiddleware, getMiddlewareChain, type MoriaMiddleware } from './middleware.js';
 
 /** Supported HTTP methods in route files. */
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'] as const;
@@ -216,6 +217,7 @@ export async function scanRoutes(routesDir: string): Promise<RouteEntry[]> {
  *
  * Page routes with Mithril components are auto-wrapped with SSR rendering.
  * API routes are registered directly as Fastify handlers.
+ * Middleware from `_middleware.ts` files is attached as `preHandler` hooks.
  */
 export async function registerRoutes(
     server: FastifyInstance,
@@ -226,7 +228,19 @@ export async function registerRoutes(
     const mode = options.mode ?? 'development';
     const config = options.config ?? {};
 
+    // ─── Scan file-based middleware ──────────────────────────
+    const middlewareEntries = await scanMiddleware(routesDir);
+    if (middlewareEntries.length > 0) {
+        server.log.info(
+            `Found ${middlewareEntries.length} middleware file(s): ${middlewareEntries.map((m) => m.scope || '/').join(', ')}`
+        );
+    }
+
     for (const route of routes) {
+        // Resolve middleware chain for this route
+        const chain: MoriaMiddleware[] = getMiddlewareChain(route.filePath, middlewareEntries);
+        const preHandler = chain.length > 0 ? chain : undefined;
+
         // ─── Page route with Mithril component → SSR handler ─────
         if (route.component) {
             const component = route.component;
@@ -236,6 +250,7 @@ export async function registerRoutes(
             server.route({
                 method: 'GET',
                 url: route.urlPath,
+                preHandler,
                 handler: async (request: FastifyRequest, reply: FastifyReply) => {
                     // Load server data if available
                     let initialData: Record<string, unknown> | undefined;
@@ -267,6 +282,7 @@ export async function registerRoutes(
             server.route({
                 method: method.toUpperCase() as Uppercase<string>,
                 url: route.urlPath,
+                preHandler,
                 handler: handler as RouteHandler,
             });
             server.log.info(`Route: ${method.toUpperCase()} ${route.urlPath} → ${route.filePath}`);

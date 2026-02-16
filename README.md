@@ -174,7 +174,51 @@ export function GET(request: FastifyRequest<{ Params: { id: string } }>) {
 }
 ```
 
-### 4. Database
+### 4. Middleware
+
+Place `_middleware.ts` files in route directories — they're automatically scoped to sibling and child routes:
+
+```
+src/routes/
+├── _middleware.ts           → runs on ALL routes
+├── api/
+│   ├── _middleware.ts       → runs on /api/* routes only
+│   └── hello.ts
+└── pages/
+    └── index.ts
+```
+
+```ts
+// src/routes/_middleware.ts
+import { defineMiddleware } from '@moriajs/core';
+
+export default defineMiddleware(async (request, reply) => {
+    request.log.info(`→ ${request.method} ${request.url}`);
+});
+```
+
+Export an array for multiple middleware per scope:
+
+```ts
+export default [
+    defineMiddleware(async (req) => { /* logger */ }),
+    defineMiddleware(async (req, reply) => { /* auth guard */ }),
+];
+```
+
+Global middleware (via config, runs on every request including `/health`):
+
+```ts
+const app = await createApp({
+    config: defineConfig({
+        middleware: [
+            defineMiddleware(async (req) => { req.log.info('global'); }),
+        ],
+    }),
+});
+```
+
+### 5. Database
 
 MoriaJS uses [Kysely](https://kysely.dev) for type-safe database queries with [kysely-schema](https://github.com/guntur-d/kysely-schema) for schema-first development.
 
@@ -203,7 +247,7 @@ await app.use(createDatabasePlugin({
 }));
 ```
 
-### 5. Authentication
+### 6. Authentication
 
 JWT-based auth with httpOnly cookies — secure by default.
 
@@ -242,7 +286,7 @@ app.server.delete('/api/users/:id',
 );
 ```
 
-### 6. Server-Side Rendering
+### 7. Server-Side Rendering
 
 Render Mithril.js components on the server with automatic hydration.
 
@@ -271,7 +315,7 @@ const data = getHydrationData();
 await hydrate(App, document.getElementById('app')!);
 ```
 
-### 7. UI Components
+### 8. UI Components
 
 Built-in Mithril.js components — CSS-framework agnostic.
 
@@ -315,7 +359,7 @@ const Page = {
 };
 ```
 
-### 8. Plugins
+### 9. Plugins
 
 Extend MoriaJS with custom plugins.
 
@@ -385,6 +429,7 @@ moria generate     # Generate routes, components, models
 - [Configuration](./packages/core/src/config.ts) — All config options
 - [Vite Integration](./packages/core/src/vite.ts) — Dev server + HMR
 - [File-Based Routing](./packages/core/src/router.ts) — Route conventions
+- [Middleware](./packages/core/src/middleware.ts) — Middleware system
 - [Plugin API](./packages/core/src/plugins.ts) — Creating plugins
 - [Database](./packages/db/src/index.ts) — Database adapters
 - [Auth](./packages/auth/src/index.ts) — Authentication system
@@ -404,9 +449,9 @@ moria generate     # Generate routes, components, models
 - [x] Vite integration with HMR
 - [x] File-based routing
 - [x] Full SSR/CSR hydration
-- [ ] OAuth providers
-- [ ] Middleware system
+- [x] Middleware system
 - [ ] Starter templates
+- [ ] OAuth providers
 - [ ] kysely-schema integration
 
 ## Contributing

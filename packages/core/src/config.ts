@@ -59,6 +59,9 @@ export interface MoriaConfig {
         /** Routes directory relative to rootDir (default: 'src/routes') */
         dir?: string;
     };
+
+    /** Global middleware (runs on every request) */
+    middleware?: Array<import('./middleware.js').MoriaMiddleware>;
 }
 
 /**

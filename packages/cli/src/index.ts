@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 
-const VERSION = '0.1.1';
+const VERSION = '0.3.0';
 
 export const cli = cac('moria');
 
