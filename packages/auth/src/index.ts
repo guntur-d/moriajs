@@ -3,10 +3,17 @@
  *
  * Pluggable authentication system for MoriaJS.
  * Default: JWT + httpOnly cookies.
- * Architecture: Provider-based for future OAuth, sessions, etc.
+ * Providers: Google OAuth, GitHub OAuth (built-in).
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { OAuthProvider } from './providers/types.js';
+import crypto from 'node:crypto';
+
+// ─── Re-exports ──────────────────────────────────────
+export { googleProvider } from './providers/google.js';
+export { githubProvider } from './providers/github.js';
+export type { OAuthProviderConfig, OAuthProvider } from './providers/types.js';
 
 /**
  * User payload stored in JWT token.
@@ -35,6 +42,12 @@ export interface AuthConfig {
     cookiePath?: string;
     /** SameSite cookie attribute (default: 'lax') */
     sameSite?: 'strict' | 'lax' | 'none';
+    /** OAuth providers (Google, GitHub, etc.) */
+    providers?: OAuthProvider[];
+    /** Default redirect after successful OAuth (default: '/') */
+    successRedirect?: string;
+    /** Default redirect after failed OAuth (default: '/') */
+    failureRedirect?: string;
 }
 
 /**
@@ -57,12 +70,22 @@ export interface AuthProvider {
  * @example
  * ```ts
  * import { createApp } from '@moriajs/core';
- * import { createAuthPlugin } from '@moriajs/auth';
+ * import { createAuthPlugin, googleProvider, githubProvider } from '@moriajs/auth';
  *
  * const app = await createApp();
  * await app.use(createAuthPlugin({
  *   secret: process.env.JWT_SECRET!,
  *   expiresIn: '24h',
+ *   providers: [
+ *     googleProvider({
+ *       clientId: process.env.GOOGLE_CLIENT_ID!,
+ *       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+ *     }),
+ *     githubProvider({
+ *       clientId: process.env.GITHUB_CLIENT_ID!,
+ *       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+ *     }),
+ *   ],
  * }));
  * ```
  */
@@ -103,9 +126,103 @@ export function createAuthPlugin(config: AuthConfig) {
                 );
             });
 
+            // ─── Register OAuth providers ────────────────────
+            if (config.providers && config.providers.length > 0) {
+                registerOAuthRoutes(server as FastifyInstance, config);
+            }
+
             (server as FastifyInstance).log.info('@moriajs/auth: JWT auth plugin registered');
+
+            if (config.providers?.length) {
+                const names = config.providers.map((p) => p.name).join(', ');
+                (server as FastifyInstance).log.info(`@moriajs/auth: OAuth providers registered: ${names}`);
+            }
         },
     };
+}
+
+/**
+ * Register OAuth redirect + callback routes for each provider.
+ */
+function registerOAuthRoutes(server: FastifyInstance, config: AuthConfig) {
+    for (const provider of config.providers ?? []) {
+        const authPath = `/auth/${provider.name}`;
+        const callbackPath = provider.callbackPath;
+
+        // GET /auth/:provider → Redirect to OAuth consent screen
+        server.get(authPath, async (request, reply) => {
+            const state = crypto.randomBytes(16).toString('hex');
+
+            // Store state in a short-lived cookie for CSRF protection
+            reply.header('Set-Cookie',
+                `moria_oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`
+            );
+
+            // Build the full callback URL from the request
+            const protocol = request.protocol ?? 'http';
+            const host = request.hostname;
+            const fullCallbackUrl = `${protocol}://${host}${callbackPath}`;
+
+            // Get auth URL and inject the full callback URL
+            let authUrl = provider.getAuthUrl(state);
+            authUrl = authUrl.replace('redirect_uri=', `redirect_uri=${encodeURIComponent(fullCallbackUrl)}`);
+
+            return reply.redirect(authUrl);
+        });
+
+        // GET /auth/:provider/callback → Exchange code, issue JWT
+        server.get(callbackPath, async (request, reply) => {
+            const query = request.query as { code?: string; state?: string; error?: string };
+            const failureUrl = provider.failureRedirect ?? config.failureRedirect ?? '/';
+            const successUrl = provider.successRedirect ?? config.successRedirect ?? '/';
+
+            // Check for OAuth errors
+            if (query.error || !query.code) {
+                request.log.warn(`OAuth ${provider.name} error: ${query.error ?? 'no code'}`);
+                return reply.redirect(failureUrl);
+            }
+
+            // Validate state (CSRF protection)
+            const cookieHeader = request.headers.cookie ?? '';
+            const stateCookie = cookieHeader
+                .split(';')
+                .map((c) => c.trim())
+                .find((c) => c.startsWith('moria_oauth_state='));
+            const savedState = stateCookie?.split('=')[1];
+
+            if (!savedState || savedState !== query.state) {
+                request.log.warn(`OAuth ${provider.name}: state mismatch`);
+                return reply.redirect(failureUrl);
+            }
+
+            // Clear state cookie
+            reply.header('Set-Cookie',
+                'moria_oauth_state=; HttpOnly; Path=/; Max-Age=0'
+            );
+
+            try {
+                // Build full callback URL
+                const protocol = request.protocol ?? 'http';
+                const host = request.hostname;
+                const fullCallbackUrl = `${protocol}://${host}${callbackPath}`;
+
+                // Exchange code for access token
+                const accessToken = await provider.exchangeCode(query.code, fullCallbackUrl);
+
+                // Fetch user profile
+                const user = await provider.fetchProfile(accessToken);
+
+                // Sign JWT and set cookie
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (server as any).signIn(user, reply);
+
+                return reply.redirect(successUrl);
+            } catch (err) {
+                request.log.error(err, `OAuth ${provider.name} callback failed`);
+                return reply.redirect(failureUrl);
+            }
+        });
+    }
 }
 
 /**

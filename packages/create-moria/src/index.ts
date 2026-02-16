@@ -19,7 +19,7 @@ import prompts from 'prompts';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const VERSION = '0.3.5';
+const VERSION = '0.4.0';
 
 export const cli = cac('create-moria');
 
@@ -76,11 +76,11 @@ dist/
 `;
 }
 
-function moriaConfigTs(db: string): string {
+function moriaConfigTs(db: string, usePongo: boolean = false): string {
     const dbConfig =
         db === 'sqlite'
             ? `    adapter: 'sqlite',\n    filename: './dev.db',`
-            : `    adapter: 'pg',\n    url: process.env.DATABASE_URL,`;
+            : `    adapter: 'pg',\n    url: process.env.DATABASE_URL,${usePongo ? '\n    usePongo: true,' : ''}`;
     return `import { defineConfig } from '@moriajs/core';
 
 export default defineConfig({
@@ -97,11 +97,11 @@ ${dbConfig}
 `;
 }
 
-function moriaConfigJs(db: string): string {
+function moriaConfigJs(db: string, usePongo: boolean = false): string {
     const dbConfig =
         db === 'sqlite'
             ? `    adapter: 'sqlite',\n    filename: './dev.db',`
-            : `    adapter: 'pg',\n    url: process.env.DATABASE_URL,`;
+            : `    adapter: 'pg',\n    url: process.env.DATABASE_URL,${usePongo ? '\n    usePongo: true,' : ''}`;
     return `/** @type {import('@moriajs/core').MoriaConfig} */
 export default {
   server: {
@@ -236,12 +236,20 @@ function srcApiUsersTs(): string {
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
-export function GET(request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) {
+export async function GET(request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) {
     const { id } = request.params;
+    
+    // Example using the MoriaJS Agnostic DB API
+    // This works regardless of the underlying library (Kysely, Pongo, etc.)
+    const user = await request.server.db.findOne<{ id: string, name: string, email: string }>('users', { id });
+    
+    if (user) return user;
+
     return {
         id,
         name: \`User \${id}\`,
         email: \`user\${id}@example.com\`,
+        _source: 'mock',
     };
 }
 `;
@@ -297,12 +305,19 @@ function srcApiUsersJs(): string {
  * GET /api/users/:id
  */
 
-export function GET(request, _reply) {
+export async function GET(request, _reply) {
     const { id } = request.params;
+    
+    // Example using the MoriaJS Agnostic DB API
+    const user = await request.server.db.findOne('users', { id });
+    
+    if (user) return user;
+
     return {
         id,
         name: \`User \${id}\`,
         email: \`user\${id}@example.com\`,
+        _source: 'mock',
     };
 }
 `;
@@ -341,7 +356,7 @@ export async function getServerData() {
             'File-based routing',
             'SSR + client hydration',
             'Middleware system',
-            'Database with Kysely',
+            'Agnostic Database (Kysely/Pongo)',
             'JWT authentication',
         ],
     };
@@ -407,7 +422,7 @@ export async function getServerData() {
             'File-based routing',
             'SSR + client hydration',
             'Middleware system',
-            'Database with Kysely',
+            'Agnostic Database (Kysely/Pongo)',
             'JWT authentication',
         ],
     };
@@ -523,7 +538,8 @@ cli
     .option('--typescript', 'Use TypeScript (default)')
     .option('--javascript', 'Use JavaScript')
     .option('--db <adapter>', 'Database adapter: pg | sqlite', { default: '' })
-    .action(async (projectName?: string, options?: Record<string, unknown>) => {
+    .option('--pongo', 'Use Pongo with PostgreSQL', { default: false })
+    .action(async (projectName?: string, options?: Record<string, any>) => {
         console.log();
         console.log(pc.cyan('🏔️  create-moria') + pc.dim(` v${VERSION}`));
         console.log(pc.dim('  The MoriaJS project scaffolder'));
@@ -567,6 +583,14 @@ cli
                 ],
                 initial: 0,
             },
+            {
+                type: (prev) => prev === 'pg' && !options?.db ? 'toggle' : null,
+                name: 'usePongo',
+                message: 'Use Pongo (MongoDB-like API on Postgres)?',
+                initial: true,
+                active: 'yes',
+                inactive: 'no',
+            },
         ]);
 
         const name = projectName ?? answers.projectName;
@@ -579,6 +603,7 @@ cli
         const isTS = (options?.typescript as boolean) || answers.language === 'ts' || (!options?.javascript && !answers.language);
         const lang = isTS ? 'ts' : 'js';
         const db = (options?.db as string) || answers.database || 'sqlite';
+        const usePongo = (options?.pongo as boolean) || answers.usePongo || false;
         const dir = resolve(process.cwd(), name);
         const ext = lang === 'ts' ? 'ts' : 'js';
 
@@ -591,7 +616,7 @@ cli
         console.log(pc.green(`Creating MoriaJS project in ${pc.bold(dir)}`));
         console.log(pc.dim(`  Template : ${template}`));
         console.log(pc.dim(`  Language : ${isTS ? 'TypeScript' : 'JavaScript'}`));
-        console.log(pc.dim(`  Database : ${db}`));
+        console.log(pc.dim(`  Database : ${db}${usePongo ? ' (with Pongo)' : ''}`));
         console.log();
 
         // ─── Create directory structure ─────────────────────
@@ -649,7 +674,7 @@ cli
         // ─── Config ─────────────────────────────────────────
         write(
             join(dir, `moria.config.${ext}`),
-            isTS ? moriaConfigTs(db) : moriaConfigJs(db)
+            isTS ? moriaConfigTs(db, usePongo) : moriaConfigJs(db, usePongo)
         );
 
         // ─── tsconfig.json ──────────────────────────────────
@@ -728,3 +753,4 @@ cli
 
 cli.version(VERSION);
 cli.help();
+cli.parse();

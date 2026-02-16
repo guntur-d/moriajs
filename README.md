@@ -20,7 +20,7 @@ MoriaJS is a batteries-included full-stack framework built on **[Fastify](https:
 - 🔥 **Vite + HMR** — Vite dev server with Hot Module Replacement built-in
 - 📁 **File-based routing** — Automatic route discovery from `src/routes/`
 - 🔄 **Hybrid rendering** — Server-side rendering + client-side hydration via `mithril-node-render`
-- 🗄️ **Database-agnostic** — Kysely ORM with PostgreSQL (production) and SQLite (development) adapters
+- 🗄️ **Database-agnostic** — Standardized CRUD API with support for Kysely (SQL) and Pongo (Postgres Document Store)
 - 🔐 **Auth built-in** — JWT + httpOnly cookies with pluggable auth providers
 - 🧩 **Plugin system** — Extend the framework with `defineMoriaPlugin()`
 - 🎨 **UI components** — Toaster notifications, modals, and layout primitives
@@ -126,6 +126,7 @@ export default defineConfig({
   database: {
     adapter: 'pg',           // 'pg' | 'sqlite'
     url: process.env.DATABASE_URL,
+    usePongo: true,          // Optional: use Pongo (Document API) for Postgres
   },
   auth: {
     secret: process.env.JWT_SECRET,
@@ -220,54 +221,65 @@ const app = await createApp({
 
 ### 5. Database
 
-MoriaJS uses [Kysely](https://kysely.dev) for type-safe database queries with [kysely-schema](https://github.com/guntur-d/kysely-schema) for schema-first development.
+MoriaJS provides a **standardized, agnostic DB API** that works across different underlying libraries (Kysely, Pongo, etc.).
+
+```ts
+// src/routes/api/users.ts
+export async function GET(request) {
+  // Same API works regardless of adapter/library!
+  const users = await request.server.db.find('users', { active: true });
+  return users;
+}
+```
+
+#### Configuration
 
 ```ts
 import { createDatabase } from '@moriajs/db';
 
-// SQLite for development
+// 1. Kysely Adapter (SQL)
 const db = await createDatabase({
   adapter: 'sqlite',
   filename: './dev.db',
 });
 
-// PostgreSQL for production
+// 2. Pongo Adapter (Document Store on Postgres)
 const db = await createDatabase({
   adapter: 'pg',
   url: process.env.DATABASE_URL,
+  usePongo: true,
 });
-
-// Use as a plugin
-import { createDatabasePlugin } from '@moriajs/db';
-
-const app = await createApp();
-await app.use(createDatabasePlugin({
-  adapter: 'sqlite',
-  filename: './dev.db',
-}));
 ```
 
 ### 6. Authentication
 
-JWT-based auth with httpOnly cookies — secure by default.
+JWT-based auth with httpOnly cookies — secure by default. Includes built-in **Google** and **GitHub** OAuth providers.
 
 ```ts
-import { createAuthPlugin, requireAuth } from '@moriajs/auth';
+import { createAuthPlugin, requireAuth, googleProvider, githubProvider } from '@moriajs/auth';
 
 const app = await createApp();
 
-// Register the auth plugin
+// Register auth with OAuth providers
 await app.use(createAuthPlugin({
   secret: process.env.JWT_SECRET!,
   expiresIn: '24h',
+  providers: [
+    googleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    githubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    }),
+  ],
 }));
-
-// Public route
-app.server.post('/api/login', async (request, reply) => {
-  // Validate credentials...
-  const token = await app.server.signIn({ id: user.id, email: user.email }, reply);
-  return { token };
-});
+// Auto-registers:
+//   GET /auth/google          → redirect to Google
+//   GET /auth/google/callback  → handle callback, set JWT cookie
+//   GET /auth/github          → redirect to GitHub
+//   GET /auth/github/callback  → handle callback, set JWT cookie
 
 // Protected route
 app.server.get('/api/profile',
@@ -402,7 +414,7 @@ moria generate     # Generate routes, components, models
 |---------|-------------|
 | `@moriajs/core` | Fastify server, Vite integration, file-based routing, config, plugin system |
 | `@moriajs/renderer` | SSR/CSR hybrid rendering engine with dev/prod mode |
-| `@moriajs/db` | Kysely database adapters (PG + SQLite) |
+| `@moriajs/db` | Agnostic database adapters (Kysely + Pongo) |
 | `@moriajs/auth` | JWT + httpOnly cookie authentication |
 | `@moriajs/cli` | Dev server, production build, and generate commands |
 | `@moriajs/ui` | Toaster, Modal, and UI primitives |
@@ -415,7 +427,7 @@ moria generate     # Generate routes, components, models
 | Runtime | Node.js ≥ 20 |
 | Backend | [Fastify](https://fastify.dev) |
 | Frontend | [Mithril.js](https://mithril.js.org) |
-| ORM | [Kysely](https://kysely.dev) + [kysely-schema](https://github.com/guntur-d/kysely-schema) |
+| DB / ORM | [Kysely](https://kysely.dev) (SQL) or [Pongo](https://github.com/event-driven-io/pongo) (Document) |
 | Bundler | [Vite](https://vite.dev) |
 | Monorepo | pnpm workspaces + [Turborepo](https://turbo.build) |
 | Language | TypeScript |
@@ -440,7 +452,7 @@ moria generate     # Generate routes, components, models
 
 - [x] Monorepo scaffold (pnpm + Turborepo)
 - [x] Core server with Fastify
-- [x] Database adapters (PostgreSQL + SQLite)
+- [x] Database Agnostic Architecture (Kysely + Pongo)
 - [x] JWT authentication
 - [x] SSR renderer
 - [x] UI component library
@@ -451,8 +463,8 @@ moria generate     # Generate routes, components, models
 - [x] Full SSR/CSR hydration
 - [x] Middleware system
 - [x] Starter templates
-- [ ] OAuth providers
-- [ ] kysely-schema integration
+- [x] DB Agnostic & Pongo integration
+- [x] OAuth providers (Google, GitHub)
 
 ## Contributing
 

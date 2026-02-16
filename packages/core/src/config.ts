@@ -32,6 +32,8 @@ export interface MoriaConfig {
         url?: string;
         /** Path to SQLite file (for SQLite adapter) */
         filename?: string;
+        /** Use Pongo (Document API) instead of Kysely (SQL API) for PostgreSQL */
+        usePongo?: boolean;
     };
 
     /** Authentication configuration */
