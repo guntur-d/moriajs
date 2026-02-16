@@ -404,10 +404,10 @@ moria generate     # Generate routes, components, models
 - [x] Vite integration with HMR
 - [x] File-based routing
 - [x] Full SSR/CSR hydration
-- [ ] kysely-schema integration
 - [ ] OAuth providers
 - [ ] Middleware system
 - [ ] Starter templates
+- [ ] kysely-schema integration
 
 ## Contributing
 

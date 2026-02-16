@@ -1,6 +1,6 @@
 {
     "name": "@moriajs/core",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "type": "module",
     "description": "MoriaJS framework core — Fastify server, Vite integration, and routing",
     "main": "./dist/index.js",
