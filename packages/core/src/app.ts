@@ -11,6 +11,13 @@ import { createViteDevMiddleware, serveProductionAssets } from './vite.js';
 import { registerRoutes } from './router.js';
 import type { ViteDevServer } from 'vite';
 
+// Patch BigInt to support JSON serialization
+if (!(BigInt.prototype as any).toJSON) {
+    (BigInt.prototype as any).toJSON = function () {
+        return this.toString();
+    };
+}
+
 /**
  * Options for creating a MoriaJS application.
  */

@@ -6,6 +6,10 @@
         "lib": [
             "ES2022",
             "DOM"
+        ],
+        "types": [
+            "vite/client",
+            "node"
         ]
     },
     "include": [

@@ -131,6 +131,8 @@ export class PongoAdapter implements MoriaDBAdapter {
         if (!this.config.url) {
             throw new Error('@moriajs/db: PostgreSQL connection URL is required for Pongo');
         }
+        // NOTE: Pongo 0.16.x currently hardcodes the JSONB column name to 'data'.
+        // See: https://github.com/event-driven-io/pongo/issues
         this.client = pongoClient(this.config.url);
         await this.client.connect();
     }

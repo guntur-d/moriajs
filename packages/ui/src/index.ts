@@ -228,3 +228,13 @@ export const Modal: m.Component<ModalAttrs> = {
         );
     },
 };
+
+/**
+ * Aggregate of all UI components for easier discovery.
+ */
+export const MoriaUI = {
+    Toaster,
+    Modal,
+    toast,
+};
+

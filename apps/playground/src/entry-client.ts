@@ -6,14 +6,39 @@
  */
 
 import m from 'mithril';
-import HomePage from './routes/pages/index.js';
+import { getHydrationData, hydrate } from '@moriajs/renderer';
 
-// Mount the app — Mithril takes over the server-rendered HTML
-const root = document.getElementById('app');
+async function main() {
+    const root = document.getElementById('app');
+    if (!root) {
+        console.error('[MoriaJS] #app root element not found');
+        return;
+    }
 
-if (root) {
-    m.mount(root, HomePage);
-    console.log('[MoriaJS] Client hydration complete ✓');
-} else {
-    console.error('[MoriaJS] #app root element not found');
+    const data = getHydrationData<{ _moria_page?: string }>();
+    const pagePath = data?._moria_page;
+
+    if (!pagePath) {
+        console.warn('[MoriaJS] No _moria_page found in hydration data, falling back to static mount');
+        return;
+    }
+
+    // Use Vite dynamic imports to find the component
+    // This assumes routes are in ./routes/
+    const pages = import.meta.glob('./routes/**/*.{ts,js,tsx,jsx}');
+    const importFn = pages[`./routes/${pagePath}`];
+
+    if (importFn) {
+        const mod = await importFn() as any;
+        const component = mod.default;
+
+        await hydrate(component, root, data);
+        console.log(`[MoriaJS] Hydrated: ${pagePath} ✓`);
+    } else {
+        console.error(`[MoriaJS] Could not find component for: ${pagePath}`);
+        console.log('Available pages:', Object.keys(pages));
+    }
 }
+
+main().catch(console.error);
+

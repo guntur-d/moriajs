@@ -1,51 +1,51 @@
 {
-    "name": "@moriajs/db",
-    "version": "0.4.0",
-    "type": "module",
-    "description": "MoriaJS database — Kysely adapters with kysely-schema integration",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js"
-        }
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "typecheck": "tsc --noEmit",
-        "clean": "rimraf dist .turbo"
-    },
-    "dependencies": {
-        "kysely": "^0.27.0",
-        "@event-driven-io/pongo": "^0.16.11"
-    },
-    "optionalDependencies": {
-        "pg": "^8.13.0",
-        "better-sqlite3": "^11.0.0"
-    },
-    "devDependencies": {
-        "typescript": "^5.7.0",
-        "rimraf": "^6.0.0",
-        "@types/node": "^22.0.0",
-        "@types/better-sqlite3": "^7.6.0"
-    },
-    "peerDependencies": {
-        "@moriajs/core": "workspace:*"
-    },
-    "license": "MIT",
-    "author": "Guntur-D <guntur.d.npm@gmail.com>",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/guntur-d/moriajs.git",
-        "directory": "packages/db"
-    },
-    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/db#readme",
-    "bugs": {
-        "url": "https://github.com/guntur-d/moriajs/issues"
-    },
-    "publishConfig": {
-        "access": "public"
+  "name": "@moriajs/db",
+  "version": "0.4.2",
+  "type": "module",
+  "description": "MoriaJS database — Kysely adapters with kysely-schema integration",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "kysely": "^0.27.0",
+    "@event-driven-io/pongo": "^0.16.11"
+  },
+  "optionalDependencies": {
+    "pg": "^8.13.0",
+    "better-sqlite3": "^11.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "rimraf": "^6.0.0",
+    "@types/node": "^22.0.0",
+    "@types/better-sqlite3": "^7.6.0"
+  },
+  "peerDependencies": {
+    "@moriajs/core": "workspace:*"
+  },
+  "license": "MIT",
+  "author": "Guntur-D <guntur.d.npm@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guntur-d/moriajs.git",
+    "directory": "packages/db"
+  },
+  "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/db#readme",
+  "bugs": {
+    "url": "https://github.com/guntur-d/moriajs/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

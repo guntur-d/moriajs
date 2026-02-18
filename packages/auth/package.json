@@ -1,47 +1,47 @@
 {
-    "name": "@moriajs/auth",
-    "version": "0.4.0",
-    "type": "module",
-    "description": "MoriaJS auth — JWT + httpOnly cookies, pluggable auth system",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js"
-        }
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "typecheck": "tsc --noEmit",
-        "clean": "rimraf dist .turbo"
-    },
-    "dependencies": {
-        "@fastify/jwt": "^10.0.0",
-        "@fastify/cookie": "^11.0.0"
-    },
-    "devDependencies": {
-        "typescript": "^5.7.0",
-        "rimraf": "^6.0.0",
-        "@types/node": "^22.0.0",
-        "fastify": "^5.2.0"
-    },
-    "peerDependencies": {
-        "@moriajs/core": "workspace:*"
-    },
-    "license": "MIT",
-    "author": "Guntur-D <guntur.d.npm@gmail.com>",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/guntur-d/moriajs.git",
-        "directory": "packages/auth"
-    },
-    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/auth#readme",
-    "bugs": {
-        "url": "https://github.com/guntur-d/moriajs/issues"
-    },
-    "publishConfig": {
-        "access": "public"
+  "name": "@moriajs/auth",
+  "version": "0.4.2",
+  "type": "module",
+  "description": "MoriaJS auth — JWT + httpOnly cookies, pluggable auth system",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "@fastify/jwt": "^10.0.0",
+    "@fastify/cookie": "^11.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "rimraf": "^6.0.0",
+    "@types/node": "^22.0.0",
+    "fastify": "^5.2.0"
+  },
+  "peerDependencies": {
+    "@moriajs/core": "workspace:*"
+  },
+  "license": "MIT",
+  "author": "Guntur-D <guntur.d.npm@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guntur-d/moriajs.git",
+    "directory": "packages/auth"
+  },
+  "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/auth#readme",
+  "bugs": {
+    "url": "https://github.com/guntur-d/moriajs/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

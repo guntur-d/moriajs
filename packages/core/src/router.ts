@@ -258,9 +258,12 @@ export async function registerRoutes(
                 preHandler,
                 handler: async (request: FastifyRequest, reply: FastifyReply) => {
                     // Load server data if available
-                    let initialData: Record<string, unknown> = {};
+                    let initialData: Record<string, unknown> = {
+                        _moria_page: route.filePath,
+                    };
                     if (getServerData) {
-                        initialData = (await getServerData(request)) as Record<string, unknown> || {};
+                        const serverData = await getServerData(request);
+                        Object.assign(initialData, serverData);
                     }
 
                     // Dynamic import of renderer (avoids circular deps)

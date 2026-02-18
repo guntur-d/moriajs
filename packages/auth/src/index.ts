@@ -226,30 +226,47 @@ function registerOAuthRoutes(server: FastifyInstance, config: AuthConfig) {
 }
 
 /**
+ * Internal auth verification logic.
+ */
+async function performAuth(request: FastifyRequest, reply: FastifyReply, options?: { role?: string }) {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (request as any).jwtVerify();
+
+        if (options?.role) {
+            const user = request.user as AuthUser;
+            if (user.role !== options.role) {
+                return reply.status(403).send({ error: 'Forbidden' });
+            }
+        }
+    } catch {
+        return reply.status(401).send({ error: 'Unauthorized' });
+    }
+}
+
+/**
  * Route-level authentication guard.
  * Use as a Fastify preHandler hook.
  *
+ * Supports both direct and factory calls:
+ * - `preHandler: [requireAuth]`
+ * - `preHandler: [requireAuth({ role: 'admin' })]`
+ *
  * @example
  * ```ts
- * server.get('/protected', { preHandler: [requireAuth()] }, async (req) => {
+ * server.get('/protected', { preHandler: [requireAuth] }, async (req) => {
  *   return { user: req.user };
  * });
  * ```
  */
-export function requireAuth(options?: { role?: string }) {
-    return async (request: FastifyRequest, reply: FastifyReply) => {
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (request as any).jwtVerify();
+export function requireAuth(arg1?: any, arg2?: any): any {
+    // If called with (request, reply), it's a direct call
+    if (arg1 && typeof arg1 === 'object' && 'raw' in arg1) {
+        return performAuth(arg1, arg2);
+    }
 
-            if (options?.role) {
-                const user = request.user as AuthUser;
-                if (user.role !== options.role) {
-                    return reply.status(403).send({ error: 'Forbidden' });
-                }
-            }
-        } catch {
-            return reply.status(401).send({ error: 'Unauthorized' });
-        }
+    // Otherwise, it's a factory call: requireAuth(options)
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+        return performAuth(request, reply, arg1);
     };
 }

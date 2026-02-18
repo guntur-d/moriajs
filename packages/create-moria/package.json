@@ -1,41 +1,41 @@
 {
-    "name": "create-moria",
-    "version": "0.4.0",
-    "type": "module",
-    "description": "Create a new MoriaJS project",
-    "main": "./dist/index.js",
-    "bin": {
-        "create-moria": "./dist/bin.js"
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "typecheck": "tsc --noEmit",
-        "clean": "rimraf dist .turbo"
-    },
-    "dependencies": {
-        "cac": "^6.7.0",
-        "picocolors": "^1.1.0",
-        "prompts": "^2.4.0"
-    },
-    "devDependencies": {
-        "typescript": "^5.7.0",
-        "rimraf": "^6.0.0",
-        "@types/node": "^22.0.0",
-        "@types/prompts": "^2.4.0"
-    },
-    "license": "MIT",
-    "author": "Guntur-D <guntur.d.npm@gmail.com>",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/guntur-d/moriajs.git",
-        "directory": "packages/create-moria"
-    },
-    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/create-moria#readme",
-    "bugs": {
-        "url": "https://github.com/guntur-d/moriajs/issues"
-    },
-    "publishConfig": {
-        "access": "public"
-    }
+  "name": "create-moria",
+  "version": "0.4.2",
+  "type": "module",
+  "description": "Create a new MoriaJS project",
+  "main": "./dist/index.js",
+  "bin": {
+    "create-moria": "./dist/bin.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "cac": "^6.7.0",
+    "picocolors": "^1.1.0",
+    "prompts": "^2.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "rimraf": "^6.0.0",
+    "@types/node": "^22.0.0",
+    "@types/prompts": "^2.4.0"
+  },
+  "license": "MIT",
+  "author": "Guntur-D <guntur.d.npm@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guntur-d/moriajs.git",
+    "directory": "packages/create-moria"
+  },
+  "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/create-moria#readme",
+  "bugs": {
+    "url": "https://github.com/guntur-d/moriajs/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

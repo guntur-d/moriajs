@@ -1,6 +1,6 @@
 {
   "name": "moriajs",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "private": false,
   "type": "module",
   "description": "A full-stack meta-framework for Mithril.js built on Fastify",

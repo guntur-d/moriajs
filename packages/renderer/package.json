@@ -1,44 +1,44 @@
 {
-    "name": "@moriajs/renderer",
-    "version": "0.4.0",
-    "type": "module",
-    "description": "MoriaJS renderer — Mithril.js SSR/CSR hybrid rendering engine",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js"
-        }
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "typecheck": "tsc --noEmit",
-        "clean": "rimraf dist .turbo"
-    },
-    "dependencies": {
-        "mithril": "^2.2.0",
-        "mithril-node-render": "^3.0.0"
-    },
-    "devDependencies": {
-        "typescript": "^5.7.0",
-        "rimraf": "^6.0.0",
-        "@types/mithril": "^2.2.0",
-        "@types/node": "^22.0.0"
-    },
-    "license": "MIT",
-    "author": "Guntur-D <guntur.d.npm@gmail.com>",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/guntur-d/moriajs.git",
-        "directory": "packages/renderer"
-    },
-    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/renderer#readme",
-    "bugs": {
-        "url": "https://github.com/guntur-d/moriajs/issues"
-    },
-    "publishConfig": {
-        "access": "public"
+  "name": "@moriajs/renderer",
+  "version": "0.4.2",
+  "type": "module",
+  "description": "MoriaJS renderer — Mithril.js SSR/CSR hybrid rendering engine",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "mithril": "^2.2.0",
+    "mithril-node-render": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "rimraf": "^6.0.0",
+    "@types/mithril": "^2.2.0",
+    "@types/node": "^22.0.0"
+  },
+  "license": "MIT",
+  "author": "Guntur-D <guntur.d.npm@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guntur-d/moriajs.git",
+    "directory": "packages/renderer"
+  },
+  "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/renderer#readme",
+  "bugs": {
+    "url": "https://github.com/guntur-d/moriajs/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

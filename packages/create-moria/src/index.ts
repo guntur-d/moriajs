@@ -236,21 +236,20 @@ function srcApiUsersTs(): string {
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
-export async function GET(request: FastifyRequest<{ Params: { id: string } }>, _reply: FastifyReply) {
+export async function GET(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const { id } = request.params;
     
-    // Example using the MoriaJS Agnostic DB API
-    // This works regardless of the underlying library (Kysely, Pongo, etc.)
-    const user = await request.server.db.findOne<{ id: string, name: string, email: string }>('users', { id });
-    
-    if (user) return user;
+    // The MoriaJS Agnostic DB API
+    // Works regardless of the underlying library (Kysely, Pongo, etc.)
+    if (!request.server.db) {
+        return reply.status(503).send({
+            error: 'Database not configured',
+            hint: 'Set up your database in moria.config.ts. See: https://github.com/guntur-d/moriajs#5-database',
+        });
+    }
 
-    return {
-        id,
-        name: \`User \${id}\`,
-        email: \`user\${id}@example.com\`,
-        _source: 'mock',
-    };
+    const user = await request.server.db.findOne<{ id: string, name: string, email: string }>('users', { id });
+    return user ?? reply.status(404).send({ error: \`User \${id} not found\` });
 }
 `;
 }
@@ -262,15 +261,18 @@ function srcApiSearchTs(): string {
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
-export function GET(request: FastifyRequest<{ Querystring: { q?: string } }>, _reply: FastifyReply) {
+export async function GET(request: FastifyRequest<{ Querystring: { q?: string } }>, reply: FastifyReply) {
     const { q = '' } = request.query;
-    return {
-        query: q,
-        results: [
-            { id: 1, title: \`Result for \${q} 1\` },
-            { id: 2, title: \`Result for \${q} 2\` },
-        ],
-    };
+
+    if (!request.server.db) {
+        return reply.status(503).send({
+            error: 'Database not configured',
+            hint: 'Set up your database in moria.config.ts. See: https://github.com/guntur-d/moriajs#5-database',
+        });
+    }
+
+    const results = await request.server.db.find('posts', { title: q });
+    return { query: q, results };
 }
 `;
 }
@@ -305,20 +307,19 @@ function srcApiUsersJs(): string {
  * GET /api/users/:id
  */
 
-export async function GET(request, _reply) {
+export async function GET(request, reply) {
     const { id } = request.params;
     
-    // Example using the MoriaJS Agnostic DB API
-    const user = await request.server.db.findOne('users', { id });
-    
-    if (user) return user;
+    // The MoriaJS Agnostic DB API
+    if (!request.server.db) {
+        return reply.status(503).send({
+            error: 'Database not configured',
+            hint: 'Set up your database in moria.config.ts. See: https://github.com/guntur-d/moriajs#5-database',
+        });
+    }
 
-    return {
-        id,
-        name: \`User \${id}\`,
-        email: \`user\${id}@example.com\`,
-        _source: 'mock',
-    };
+    const user = await request.server.db.findOne('users', { id });
+    return user ?? reply.status(404).send({ error: \`User \${id} not found\` });
 }
 `;
 }
@@ -328,15 +329,18 @@ function srcApiSearchJs(): string {
  * GET /api/search?q=...
  */
 
-export function GET(request, _reply) {
+export async function GET(request, reply) {
     const { q = '' } = request.query;
-    return {
-        query: q,
-        results: [
-            { id: 1, title: \`Result for \${q} 1\` },
-            { id: 2, title: \`Result for \${q} 2\` },
-        ],
-    };
+
+    if (!request.server.db) {
+        return reply.status(503).send({
+            error: 'Database not configured',
+            hint: 'Set up your database in moria.config.ts. See: https://github.com/guntur-d/moriajs#5-database',
+        });
+    }
+
+    const results = await request.server.db.find('posts', { title: q });
+    return { query: q, results };
 }
 `;
 }
@@ -753,4 +757,3 @@ cli
 
 cli.version(VERSION);
 cli.help();
-cli.parse();

@@ -1,42 +1,42 @@
 {
-    "name": "@moriajs/ui",
-    "version": "0.4.0",
-    "type": "module",
-    "description": "MoriaJS UI — Toaster, modals, and component primitives for Mithril.js",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js"
-        }
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "typecheck": "tsc --noEmit",
-        "clean": "rimraf dist .turbo"
-    },
-    "devDependencies": {
-        "typescript": "^5.7.0",
-        "rimraf": "^6.0.0",
-        "@types/mithril": "^2.2.0"
-    },
-    "peerDependencies": {
-        "mithril": "^2.2.0"
-    },
-    "license": "MIT",
-    "author": "Guntur-D <guntur.d.npm@gmail.com>",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/guntur-d/moriajs.git",
-        "directory": "packages/ui"
-    },
-    "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/ui#readme",
-    "bugs": {
-        "url": "https://github.com/guntur-d/moriajs/issues"
-    },
-    "publishConfig": {
-        "access": "public"
+  "name": "@moriajs/ui",
+  "version": "0.4.2",
+  "type": "module",
+  "description": "MoriaJS UI — Toaster, modals, and component primitives for Mithril.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist .turbo"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "rimraf": "^6.0.0",
+    "@types/mithril": "^2.2.0"
+  },
+  "peerDependencies": {
+    "mithril": "^2.2.0"
+  },
+  "license": "MIT",
+  "author": "Guntur-D <guntur.d.npm@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guntur-d/moriajs.git",
+    "directory": "packages/ui"
+  },
+  "homepage": "https://github.com/guntur-d/moriajs/tree/main/packages/ui#readme",
+  "bugs": {
+    "url": "https://github.com/guntur-d/moriajs/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
