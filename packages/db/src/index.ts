@@ -1,5 +1,6 @@
 import { Kysely, PostgresDialect, SqliteDialect } from 'kysely';
 import { pongoClient, PongoClient } from '@event-driven-io/pongo';
+import { MongoClient } from 'mongodb';
 import { MoriaDB, MoriaDBAdapter } from './types.js';
 
 export * from './types.js';
@@ -7,7 +8,7 @@ export * from './types.js';
 /**
  * Supported database adapters.
  */
-export type DatabaseAdapterName = 'pg' | 'sqlite' | 'mysql';
+export type DatabaseAdapterName = 'pg' | 'sqlite' | 'mysql' | 'mongo';
 
 /**
  * Configuration for creating a database connection.
@@ -15,7 +16,7 @@ export type DatabaseAdapterName = 'pg' | 'sqlite' | 'mysql';
 export interface DatabaseConfig {
     /** Database adapter name to use */
     adapter: DatabaseAdapterName;
-    /** Connection URL (for pg/mysql/pongo) */
+    /** Connection URL (for pg/mysql/pongo/mongo) */
     url?: string;
     /** File path (for sqlite) */
     filename?: string;
@@ -26,6 +27,8 @@ export interface DatabaseConfig {
         min?: number;
         max?: number;
     };
+    /** Database name (for mongo) */
+    dbName?: string;
 }
 
 /**
@@ -143,25 +146,126 @@ export class PongoAdapter implements MoriaDBAdapter {
         }
     }
 
+    private mapIdFilter(filter: any): any {
+        if (!filter || typeof filter !== 'object') return filter;
+        const newFilter = { ...filter };
+        if ('id' in newFilter) {
+            newFilter._id = newFilter.id;
+            delete newFilter.id;
+        }
+        return newFilter;
+    }
+
+    private mapIdResult(result: any): any {
+        if (!result) return result;
+        if (Array.isArray(result)) {
+            return result.map(item => this.mapIdResult(item));
+        }
+        if (typeof result === 'object' && '_id' in result) {
+            return { ...result, id: result._id };
+        }
+        return result;
+    }
+
     async find<T extends Record<string, any> = any>(collection: string, filter: any = {}): Promise<T[]> {
-        return await this.client!.db().collection<T>(collection).find(filter) as any;
+        const results = await this.client!.db().collection<T>(collection).find(this.mapIdFilter(filter));
+        return this.mapIdResult(results);
     }
 
     async findOne<T extends Record<string, any> = any>(collection: string, filter: any = {}): Promise<T | null> {
-        return await this.client!.db().collection<T>(collection).findOne(filter) as any;
+        const result = await this.client!.db().collection<T>(collection).findOne(this.mapIdFilter(filter));
+        return this.mapIdResult(result);
     }
 
     async insertOne<T extends Record<string, any> = any>(collection: string, data: any): Promise<T> {
         const result = await this.client!.db().collection<T>(collection).insertOne(data);
-        return result as unknown as T;
+        return this.mapIdResult(result);
     }
 
     async updateOne(collection: string, filter: any, data: any): Promise<void> {
-        await this.client!.db().collection(collection).updateOne(filter, { $set: data });
+        await this.client!.db().collection(collection).updateOne(this.mapIdFilter(filter), { $set: data });
     }
 
     async deleteOne(collection: string, filter: any): Promise<void> {
-        await this.client!.db().collection(collection).deleteOne(filter);
+        await this.client!.db().collection(collection).deleteOne(this.mapIdFilter(filter));
+    }
+
+    raw<T>(): T {
+        return this.client as unknown as T;
+    }
+}
+
+/**
+ * MongoDB Adapter Implementation
+ */
+export class MongoAdapter implements MoriaDBAdapter {
+    private client: MongoClient | null = null;
+
+    constructor(private config: DatabaseConfig) { }
+
+    async connect(): Promise<void> {
+        if (!this.config.url) {
+            throw new Error('@moriajs/db: MongoDB connection URL is required');
+        }
+        this.client = new MongoClient(this.config.url);
+        await this.client.connect();
+    }
+
+    async disconnect(): Promise<void> {
+        if (this.client) {
+            await this.client.close();
+        }
+    }
+
+    private mapIdFilter(filter: any): any {
+        if (!filter || typeof filter !== 'object') return filter;
+        const newFilter = { ...filter };
+        if ('id' in newFilter) {
+            newFilter._id = newFilter.id;
+            delete newFilter.id;
+        }
+        return newFilter;
+    }
+
+    private mapIdResult(result: any): any {
+        if (!result) return result;
+        if (Array.isArray(result)) {
+            return result.map(item => this.mapIdResult(item));
+        }
+        if (typeof result === 'object' && '_id' in result) {
+            const { _id, ...rest } = result;
+            return { ...rest, id: _id };
+        }
+        return result;
+    }
+
+    async find<T extends Record<string, any> = any>(collection: string, filter: any = {}): Promise<T[]> {
+        const db = this.client!.db(this.config.dbName);
+        const results = await db.collection(collection).find(this.mapIdFilter(filter)).toArray();
+        return this.mapIdResult(results);
+    }
+
+    async findOne<T extends Record<string, any> = any>(collection: string, filter: any = {}): Promise<T | null> {
+        const db = this.client!.db(this.config.dbName);
+        const result = await db.collection(collection).findOne(this.mapIdFilter(filter));
+        return this.mapIdResult(result);
+    }
+
+    async insertOne<T extends Record<string, any> = any>(collection: string, data: any): Promise<T> {
+        const db = this.client!.db(this.config.dbName);
+        const result = await db.collection(collection).insertOne(data);
+        const inserted = await db.collection(collection).findOne({ _id: result.insertedId });
+        return this.mapIdResult(inserted);
+    }
+
+    async updateOne(collection: string, filter: any, data: any): Promise<void> {
+        const db = this.client!.db(this.config.dbName);
+        await db.collection(collection).updateOne(this.mapIdFilter(filter), { $set: data });
+    }
+
+    async deleteOne(collection: string, filter: any): Promise<void> {
+        const db = this.client!.db(this.config.dbName);
+        await db.collection(collection).deleteOne(this.mapIdFilter(filter));
     }
 
     raw<T>(): T {
@@ -175,7 +279,9 @@ export class PongoAdapter implements MoriaDBAdapter {
 export async function createDatabase(config: DatabaseConfig): Promise<MoriaDB> {
     let adapter: MoriaDBAdapter;
 
-    if (config.usePongo && config.adapter === 'pg') {
+    if (config.adapter === 'mongo') {
+        adapter = new MongoAdapter(config);
+    } else if (config.usePongo && config.adapter === 'pg') {
         adapter = new PongoAdapter(config);
     } else {
         adapter = new KyselyAdapter(config);

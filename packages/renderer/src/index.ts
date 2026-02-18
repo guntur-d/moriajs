@@ -53,9 +53,25 @@ export async function renderToString(
     const mModule = await (Function('return import("mithril")')() as Promise<{ default: (tag: any, attrs?: any) => any }>);
 
     const render = renderModule.default;
-    const m = mModule.default;
+    const m = mModule.default as any;
 
-    const componentHtml = await render(m(component, { serverData: options.initialData ?? {} }));
+    // Patch m.request and m.redraw for SSR safety
+    // These functions use browser globals (XMLHttpRequest, FormData) or schedulers
+    // that are not available on the server.
+    const originalRequest = m.request;
+    const originalRedraw = m.redraw;
+
+    m.request = () => Promise.resolve();
+    m.redraw = () => { };
+
+    let componentHtml: string;
+    try {
+        componentHtml = await render(m(component, { serverData: options.initialData ?? {} }));
+    } finally {
+        // Restore original functions
+        m.request = originalRequest;
+        m.redraw = originalRedraw;
+    }
 
     const metaTags = options.meta
         ? Object.entries(options.meta)
@@ -139,4 +155,51 @@ export function getHydrationData<T = Record<string, unknown>>(): T | undefined {
         return (window as any).__MORIA_DATA__ as T | undefined;
     }
     return undefined;
+}
+
+/**
+ * Automatically boot the MoriaJS application on the client.
+ * Discovers the correct component based on hydration data and performs hydration.
+ *
+ * @param pages A glob import object from `import.meta.glob`.
+ */
+export async function bootstrap(pages: Record<string, () => Promise<any>>): Promise<void> {
+    const root = document.getElementById('app');
+    if (!root) {
+        console.error('[MoriaJS] #app root element not found');
+        return;
+    }
+
+    const data = getHydrationData<{ _moria_page?: string }>();
+    const pagePath = data?._moria_page;
+
+    if (!pagePath) {
+        console.warn('[MoriaJS] No _moria_page found in hydration data');
+        return;
+    }
+
+    // Try to find the component in the glob map
+    // The path usually starts with ./routes/ or similar in the app space
+    // We try to match the tail of the key with the pagePath
+    const matchingKey = Object.keys(pages).find(key => key.endsWith(pagePath));
+
+    if (matchingKey) {
+        try {
+            const mod = await pages[matchingKey]();
+            const component = mod.default;
+
+            if (!component) {
+                console.error(`[MoriaJS] Component for ${pagePath} has no default export`);
+                return;
+            }
+
+            await hydrate(component, root, data);
+            console.log(`[MoriaJS] Hydrated: ${pagePath} ✓`);
+        } catch (err) {
+            console.error(`[MoriaJS] Failed to hydrate ${pagePath}:`, err);
+        }
+    } else {
+        console.error(`[MoriaJS] Could not find component for: ${pagePath}`);
+        console.log('Available pages:', Object.keys(pages));
+    }
 }

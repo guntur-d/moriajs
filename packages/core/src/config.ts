@@ -26,7 +26,7 @@ export interface MoriaConfig {
 
     /** Database configuration */
     database?: {
-        /** Database adapter: 'pg' | 'sqlite' | 'mysql' */
+        /** Database adapter: 'pg' | 'sqlite' | 'mysql' | 'mongo' */
         adapter?: string;
         /** Connection URL */
         url?: string;
@@ -34,6 +34,8 @@ export interface MoriaConfig {
         filename?: string;
         /** Use Pongo (Document API) instead of Kysely (SQL API) for PostgreSQL */
         usePongo?: boolean;
+        /** Database name (for mongo adapter) */
+        dbName?: string;
     };
 
     /** Authentication configuration */

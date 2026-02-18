@@ -226,6 +226,26 @@ function registerOAuthRoutes(server: FastifyInstance, config: AuthConfig) {
 }
 
 /**
+ * Error thrown when authentication fails.
+ */
+export class AuthError extends Error {
+    constructor(message: string = 'Unauthorized') {
+        super(message);
+        this.name = 'AuthError';
+    }
+}
+
+/**
+ * Error thrown when authorization fails (insufficient permissions).
+ */
+export class ForbiddenError extends Error {
+    constructor(message: string = 'Forbidden') {
+        super(message);
+        this.name = 'ForbiddenError';
+    }
+}
+
+/**
  * Internal auth verification logic.
  */
 async function performAuth(request: FastifyRequest, reply: FastifyReply, options?: { role?: string }) {
@@ -236,11 +256,14 @@ async function performAuth(request: FastifyRequest, reply: FastifyReply, options
         if (options?.role) {
             const user = request.user as AuthUser;
             if (user.role !== options.role) {
-                return reply.status(403).send({ error: 'Forbidden' });
+                throw new ForbiddenError();
             }
         }
-    } catch {
-        return reply.status(401).send({ error: 'Unauthorized' });
+    } catch (err) {
+        if (err instanceof ForbiddenError) {
+            throw err;
+        }
+        throw new AuthError();
     }
 }
 

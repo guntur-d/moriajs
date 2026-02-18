@@ -1,6 +1,6 @@
 {
   "name": "@moriajs/core",
-  "version": "0.4.2",
+  "version": "0.4.11",
   "type": "module",
   "description": "MoriaJS framework core — Fastify server, Vite integration, and routing",
   "main": "./dist/index.js",
@@ -32,10 +32,22 @@
   "devDependencies": {
     "typescript": "^5.7.0",
     "rimraf": "^6.0.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@moriajs/db": "workspace:*",
+    "@moriajs/auth": "workspace:*"
   },
   "peerDependencies": {
-    "@moriajs/renderer": "workspace:*"
+    "@moriajs/renderer": "workspace:*",
+    "@moriajs/db": "workspace:*",
+    "@moriajs/auth": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@moriajs/db": {
+      "optional": true
+    },
+    "@moriajs/auth": {
+      "optional": true
+    }
   },
   "license": "MIT",
   "author": "Guntur-D <guntur.d.npm@gmail.com>",
@@ -50,5 +62,9 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "optionalDependencies": {
+    "@moriajs/db": "workspace:*",
+    "@moriajs/auth": "workspace:*"
   }
 }

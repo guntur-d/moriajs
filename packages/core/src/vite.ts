@@ -30,6 +30,11 @@ export async function createViteDevMiddleware(
             middlewareMode: true,
             hmr: true,
         },
+        optimizeDeps: {
+            // Explicitly include Mithril to ensure it's pre-bundled reliably
+            // for SSR hydration, avoiding 404s in .vite/deps
+            include: ['mithril'],
+        },
         appType: 'custom',
     });
 

@@ -37,3 +37,5 @@ tmp/
 
 implementationPlan.txt
 push.bat    
+checkpublishver.bat
+verbump.bat

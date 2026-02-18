@@ -108,15 +108,8 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
         await serveProductionAssets(server, { ...config, rootDir });
     }
 
-    // ─── File-Based Routing ──────────────────────────────────
-    const routesDir = path.resolve(rootDir, config.routes?.dir ?? 'src/routes');
-    if (fs.existsSync(routesDir)) {
-        await registerRoutes(server, routesDir, { mode, config });
-    }
-
     // Plugin registry
     const plugins: MoriaPlugin[] = [];
-
     const app: MoriaApp = {
         server,
         vite,
@@ -127,6 +120,12 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
         },
 
         async listen(listenOptions) {
+            // ─── File-Based Routing (Deferred until listen) ────────
+            const routesDir = path.resolve(rootDir, config.routes?.dir ?? 'src/routes');
+            if (fs.existsSync(routesDir)) {
+                await registerRoutes(server, routesDir, { mode, config, vite });
+            }
+
             const addr = await server.listen({
                 port: listenOptions?.port ?? port,
                 host: listenOptions?.host ?? host,
@@ -138,6 +137,30 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
             await server.close();
         },
     };
+
+    if (config.database) {
+        try {
+            // @ts-ignore
+            const resolved = import.meta.resolve('@moriajs/db');
+            const { createDatabasePlugin } = await import(resolved);
+            await app.use(createDatabasePlugin(config.database));
+            server.log.info('Auto-registered @moriajs/db plugin');
+        } catch (err) {
+            server.log.warn(`Failed to auto-register @moriajs/db: ${err}`);
+        }
+    }
+
+    if (config.auth) {
+        try {
+            // @ts-ignore
+            const resolved = import.meta.resolve('@moriajs/auth');
+            const { createAuthPlugin } = await import(resolved);
+            await app.use(createAuthPlugin(config.auth));
+            server.log.info('Auto-registered @moriajs/auth plugin');
+        } catch (err) {
+            server.log.warn(`Failed to auto-register @moriajs/auth: ${err}`);
+        }
+    }
 
     return app;
 }

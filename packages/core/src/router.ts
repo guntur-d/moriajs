@@ -24,6 +24,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { MoriaConfig } from './config.js';
 import { scanMiddleware, getMiddlewareChain, type MoriaMiddleware } from './middleware.js';
+import type { ViteDevServer } from 'vite';
 
 /** Supported HTTP methods in route files. */
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'] as const;
@@ -59,6 +60,8 @@ export interface RegisterRoutesOptions {
     mode?: 'development' | 'production';
     /** MoriaJS config for renderer options */
     config?: Partial<MoriaConfig>;
+    /** Vite instance (for ssrLoadModule in development) */
+    vite?: ViteDevServer;
 }
 
 /**
@@ -95,7 +98,7 @@ export function filePathToUrlPath(filePath: string): string {
     // (no transformation needed)
 
     // Handle index files → parent path
-    route = route.replace(/\/index$/, '');
+    route = route.replace(/(^|\/)index$/, '');
 
     // Ensure leading slash
     if (!route.startsWith('/')) {
@@ -114,8 +117,14 @@ export function filePathToUrlPath(filePath: string): string {
  * Scan a directory for route files and return discovered routes.
  *
  * @param routesDir - Absolute path to the routes directory (e.g., `<project>/src/routes`)
+ * @param mode - Application mode
+ * @param vite - Vite instance (optional)
  */
-export async function scanRoutes(routesDir: string): Promise<RouteEntry[]> {
+export async function scanRoutes(
+    routesDir: string,
+    mode: 'development' | 'production' = 'development',
+    vite?: ViteDevServer
+): Promise<RouteEntry[]> {
     const pattern = '**/*.{ts,js,mts,mjs}';
     const files = await glob(pattern, {
         cwd: routesDir,
@@ -135,7 +144,11 @@ export async function scanRoutes(routesDir: string): Promise<RouteEntry[]> {
         // Dynamically import the route module
         let mod: Record<string, unknown>;
         try {
-            mod = await import(fileUrl);
+            if (vite && mode === 'development') {
+                mod = await vite.ssrLoadModule(absolutePath);
+            } else {
+                mod = await import(fileUrl);
+            }
         } catch (err) {
             console.warn(`[moria] Failed to load route: ${file}`, err);
             continue;
@@ -225,8 +238,9 @@ export async function registerRoutes(
     routesDir: string,
     options: RegisterRoutesOptions = {}
 ): Promise<RouteEntry[]> {
-    const routes = await scanRoutes(routesDir);
     const mode = options.mode ?? 'development';
+    const vite = options.vite;
+    const routes = await scanRoutes(routesDir, mode, vite);
     const config = options.config ?? {};
 
     // ─── Scan file-based middleware ──────────────────────────
@@ -298,5 +312,8 @@ export async function registerRoutes(
     }
 
     server.log.info(`Registered ${routes.length} file-based route(s)`);
+    for (const route of routes) {
+        console.log(`[moria] Registered route: ${route.urlPath}`);
+    }
     return routes;
 }
