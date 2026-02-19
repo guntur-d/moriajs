@@ -1,6 +1,6 @@
 {
   "name": "@moriajs/ui",
-  "version": "0.4.11",
+  "version": "0.4.13",
   "type": "module",
   "description": "MoriaJS UI — Toaster, modals, and component primitives for Mithril.js",
   "main": "./dist/index.js",

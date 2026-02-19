@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 
-const VERSION = '0.4.0';
+const VERSION = '0.4.13';
 
 export const cli = cac('moria');
 
@@ -42,9 +42,19 @@ cli
     .command('dev', 'Start the development server with HMR')
     .option('--port <port>', 'Port to listen on', { default: 3000 })
     .option('--host <host>', 'Host to bind to', { default: 'localhost' })
+    .option('--force', 'Clear Vite cache before starting')
     .action(async (options) => {
         console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
         console.log(pc.green('Starting dev server...'));
+
+        if (options.force) {
+            const viteCache = path.resolve(process.cwd(), 'node_modules', '.vite');
+            if (fs.existsSync(viteCache)) {
+                console.log(pc.yellow('  → Clearing Vite cache (.vite)...'));
+                fs.rmSync(viteCache, { recursive: true, force: true });
+            }
+        }
+
         console.log();
 
         try {

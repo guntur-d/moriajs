@@ -1,6 +1,6 @@
 {
   "name": "@moriajs/playground",
-  "version": "0.4.11",
+  "version": "0.4.13",
   "type": "module",
   "private": true,
   "description": "MoriaJS internal playground for testing framework features",
