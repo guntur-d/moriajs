@@ -105,26 +105,30 @@ export function createAuthPlugin(config: AuthConfig) {
             });
 
             // Auth utility: sign JWT and set cookie
-            server.decorate('signIn', async (user: AuthUser, reply: FastifyReply) => {
-                const token = server.jwt.sign(
-                    { ...user },
-                    { expiresIn: config.expiresIn ?? '7d' }
-                );
+            if (!server.hasDecorator('signIn')) {
+                server.decorate('signIn', async (user: AuthUser, reply: FastifyReply) => {
+                    const token = server.jwt.sign(
+                        { ...user },
+                        { expiresIn: config.expiresIn ?? '7d' }
+                    );
 
-                reply.header('Set-Cookie',
-                    `${config.cookieName ?? 'moria_token'}=${token}; HttpOnly; Path=${config.cookiePath ?? '/'}; SameSite=${config.sameSite ?? 'Lax'}${(config.secureCookies ?? process.env.NODE_ENV === 'production') ? '; Secure' : ''
-                    }`
-                );
+                    reply.header('Set-Cookie',
+                        `${config.cookieName ?? 'moria_token'}=${token}; HttpOnly; Path=${config.cookiePath ?? '/'}; SameSite=${config.sameSite ?? 'Lax'}${(config.secureCookies ?? process.env.NODE_ENV === 'production') ? '; Secure' : ''
+                        }`
+                    );
 
-                return token;
-            });
+                    return token;
+                });
+            }
 
             // Auth utility: sign out (clear cookie)
-            server.decorate('signOut', async (_request: FastifyRequest, reply: FastifyReply) => {
-                reply.header('Set-Cookie',
-                    `${config.cookieName ?? 'moria_token'}=; HttpOnly; Path=${config.cookiePath ?? '/'}; Max-Age=0`
-                );
-            });
+            if (!server.hasDecorator('signOut')) {
+                server.decorate('signOut', async (_request: FastifyRequest, reply: FastifyReply) => {
+                    reply.header('Set-Cookie',
+                        `${config.cookieName ?? 'moria_token'}=; HttpOnly; Path=${config.cookiePath ?? '/'}; Max-Age=0`
+                    );
+                });
+            }
 
             // ─── Register OAuth providers ────────────────────
             if (config.providers && config.providers.length > 0) {
@@ -292,4 +296,12 @@ export function requireAuth(arg1?: any, arg2?: any): any {
     return async (request: FastifyRequest, reply: FastifyReply) => {
         return performAuth(request, reply, arg1);
     };
+}
+
+// ─── Fastify Type Augmentation ──────────────────────────
+declare module 'fastify' {
+    interface FastifyInstance {
+        signIn(user: AuthUser, reply: FastifyReply): Promise<string>;
+        signOut(request: FastifyRequest, reply: FastifyReply): Promise<void>;
+    }
 }

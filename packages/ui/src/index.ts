@@ -229,12 +229,140 @@ export const Modal: m.Component<ModalAttrs> = {
     },
 };
 
+// ─── Confirmation ──────────────────────────────────────
+
+export interface ConfirmationOptions {
+    title?: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'info' | 'warning' | 'danger';
+}
+
+interface Confirmation extends ConfirmationOptions {
+    id: string;
+    resolve: (value: boolean) => void;
+}
+
+const confirmations: Confirmation[] = [];
+
+/**
+ * Show a confirmation dialog.
+ *
+ * @example
+ * ```ts
+ * import { confirm } from '@moriajs/ui';
+ *
+ * const confirmed = await confirm({
+ *   title: 'Delete User',
+ *   message: 'Are you sure you want to delete this user? This action cannot be undone.',
+ *   confirmText: 'Delete',
+ *   type: 'danger',
+ * });
+ *
+ * if (confirmed) {
+ *   // Proceed with deletion
+ * }
+ * ```
+ */
+export const confirm = (options: string | ConfirmationOptions): Promise<boolean> => {
+    const config: ConfirmationOptions = typeof options === 'string' ? { message: options } : options;
+    const id = `confirm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    return new Promise((resolve) => {
+        confirmations.push({
+            ...config,
+            id,
+            resolve,
+        });
+        m.redraw();
+    });
+};
+
+/**
+ * ConfirmationRegistry component.
+ * Mount once in your app layout to handle imperative confirmation calls.
+ */
+export const ConfirmationRegistry: m.Component = {
+    view() {
+        return m(
+            '.moria-confirmation-registry',
+            confirmations.map((c) =>
+                m(Modal, {
+                    isOpen: true,
+                    title: c.title || 'Confirm',
+                    onClose: () => {
+                        const index = confirmations.findIndex((conf) => conf.id === c.id);
+                        if (index !== -1) {
+                            confirmations.splice(index, 1);
+                            c.resolve(false);
+                            m.redraw();
+                        }
+                    },
+                }, [
+                    m('p', { style: { marginBottom: '1.5rem', color: '#374151' } }, c.message),
+                    m('.moria-modal-actions', {
+                        style: {
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '0.75rem',
+                        }
+                    }, [
+                        m('button', {
+                            style: {
+                                padding: '0.5rem 1rem',
+                                borderRadius: '0.375rem',
+                                border: '1px solid #d1d5db',
+                                background: '#fff',
+                                color: '#374151',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem',
+                                fontWeight: '500',
+                            },
+                            onclick: () => {
+                                const index = confirmations.findIndex((conf) => conf.id === c.id);
+                                if (index !== -1) {
+                                    confirmations.splice(index, 1);
+                                    c.resolve(false);
+                                    m.redraw();
+                                }
+                            }
+                        }, c.cancelText || 'Cancel'),
+                        m('button', {
+                            style: {
+                                padding: '0.5rem 1rem',
+                                borderRadius: '0.375rem',
+                                border: 'none',
+                                background: c.type === 'danger' ? '#dc2626' : (c.type === 'warning' ? '#d97706' : '#2563eb'),
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem',
+                                fontWeight: '500',
+                            },
+                            onclick: () => {
+                                const index = confirmations.findIndex((conf) => conf.id === c.id);
+                                if (index !== -1) {
+                                    confirmations.splice(index, 1);
+                                    c.resolve(true);
+                                    m.redraw();
+                                }
+                            }
+                        }, c.confirmText || 'Confirm'),
+                    ])
+                ])
+            )
+        );
+    }
+};
+
 /**
  * Aggregate of all UI components for easier discovery.
  */
 export const MoriaUI = {
     Toaster,
     Modal,
+    ConfirmationRegistry,
     toast,
+    confirm,
 };
 

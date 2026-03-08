@@ -5,7 +5,10 @@
  * It hydrates the Mithril component tree, making the page interactive.
  */
 
+import '@hotwired/turbo';
 import { bootstrap } from '@moriajs/renderer';
 
 // Automatically discover and hydrate the correct component
-bootstrap(import.meta.glob('./routes/**/*.{ts,js,tsx,jsx}')).catch(console.error);
+document.addEventListener('turbo:load', () => {
+    bootstrap(import.meta.glob('./routes/pages/**/*.{ts,js,tsx,jsx}')).catch(console.error);
+});

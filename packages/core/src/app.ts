@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyServerOptions, type FastifyRequest, type FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import compress from '@fastify/compress';
@@ -46,6 +46,43 @@ export interface MoriaApp {
 }
 
 /**
+ * Agnostic Database Interface.
+ * Implemented by @moriajs/db.
+ */
+export interface MoriaDB {
+    find<T extends Record<string, any> = any>(collection: string, filter?: any): Promise<T[]>;
+    findOne<T extends Record<string, any> = any>(collection: string, filter?: any): Promise<T | null>;
+    insertOne<T extends Record<string, any> = any>(collection: string, data: any): Promise<T>;
+    updateOne(collection: string, filter: any, data: any): Promise<void>;
+    deleteOne(collection: string, filter: any): Promise<void>;
+    raw<T>(): T;
+}
+
+/**
+ * Base Auth User.
+ */
+export interface AuthUser {
+    id: string | number;
+    email?: string;
+    role?: string;
+    [key: string]: unknown;
+}
+
+/**
+ * Fastify Type Augmentation for MoriaJS features.
+ */
+declare module 'fastify' {
+    interface FastifyInstance {
+        /** Moria Agnostic DB (if @moriajs/db is registered) */
+        db: MoriaDB;
+        /** Sign in a user and set JWT cookie (if @moriajs/auth is registered) */
+        signIn(user: AuthUser, reply: FastifyReply): Promise<string>;
+        /** Sign out a user and clear JWT cookie (if @moriajs/auth is registered) */
+        signOut(request: FastifyRequest, reply: FastifyReply): Promise<void>;
+    }
+}
+
+/**
  * Create a new MoriaJS application.
  *
  * @example
@@ -83,10 +120,28 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
 
     await server.register(cookie);
     await server.register(compress);
-    await server.register(helmet, {
-        // Relax CSP in development for Vite HMR
-        contentSecurityPolicy: mode === 'production',
-    });
+    if (config.server?.helmet !== false) {
+        const defaultHelmetOptions = {
+            contentSecurityPolicy: {
+                directives: {
+                    defaultSrc: ["'self'"],
+                    scriptSrc: ["'self'", "'unsafe-inline'"],
+                    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                    imgSrc: ["'self'", "data:", "blob:"],
+                    connectSrc: ["'self'", "ws:", "wss:"],
+                    fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+                    objectSrc: ["'none'"],
+                    upgradeInsecureRequests: [],
+                },
+            },
+        };
+
+        const helmetOptions = typeof config.server?.helmet === 'object'
+            ? { ...defaultHelmetOptions, ...config.server.helmet }
+            : defaultHelmetOptions;
+
+        await server.register(helmet, helmetOptions);
+    }
 
     // ─── Global Middleware ─────────────────────────────────────
     if (config.middleware && config.middleware.length > 0) {
@@ -115,6 +170,10 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
         vite,
 
         async use(plugin: MoriaPlugin) {
+            if (plugins.some((p) => p.name === plugin.name)) {
+                server.log.debug(`Plugin "${plugin.name}" is already registered, skipping.`);
+                return;
+            }
             plugins.push(plugin);
             await plugin.register({ server, config });
         },
@@ -138,7 +197,7 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
         },
     };
 
-    if (config.database) {
+    if (config.database && config.database.autoRegister !== false) {
         try {
             // @ts-ignore
             const resolved = import.meta.resolve('@moriajs/db');
@@ -150,7 +209,7 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
         }
     }
 
-    if (config.auth) {
+    if (config.auth && config.auth.autoRegister !== false) {
         try {
             // @ts-ignore
             const resolved = import.meta.resolve('@moriajs/auth');

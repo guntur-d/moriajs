@@ -1,3 +1,4 @@
+import 'fastify';
 /**
  * MoriaDB Agnostic Interface
  */
@@ -12,6 +13,8 @@ export interface MoriaDBAdapter {
     find<T extends Record<string, any>>(collection: string, filter: any): Promise<T[]>;
     /** Find a single document/row */
     findOne<T extends Record<string, any>>(collection: string, filter: any): Promise<T | null>;
+    /** Insert documents/rows (alias for insertOne for convenience) */
+    insert<T extends Record<string, any>>(collection: string, data: any): Promise<T>;
     /** Insert one document/row */
     insertOne<T extends Record<string, any>>(collection: string, data: any): Promise<T>;
     /** Update documents/rows */
@@ -42,6 +45,10 @@ export class MoriaDB {
         return this.adapter.findOne<T>(collection, filter);
     }
 
+    async insert<T extends Record<string, any>>(collection: string, data: any): Promise<T> {
+        return this.adapter.insert<T>(collection, data);
+    }
+
     async insertOne<T extends Record<string, any>>(collection: string, data: any): Promise<T> {
         return this.adapter.insertOne<T>(collection, data);
     }
@@ -60,5 +67,12 @@ export class MoriaDB {
      */
     raw<T>(): T {
         return this.adapter.raw<T>();
+    }
+}
+
+// ─── Fastify Type Augmentation ──────────────────────────
+declare module 'fastify' {
+    interface FastifyInstance {
+        db: MoriaDB;
     }
 }

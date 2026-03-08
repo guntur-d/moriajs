@@ -24,6 +24,12 @@ export interface RenderOptions {
     clientEntry?: string;
     /** CSS stylesheet links to inject in the head */
     cssLinks?: string[];
+    /** Pre-generated script tags to inject before </body> */
+    scriptTags?: string;
+    /** Parsed Vite manifest for resolving hashed production assets */
+    manifest?: Record<string, any>;
+    /** Base URL path for assets (default: '/assets/') */
+    basePath?: string;
 }
 
 /**
@@ -90,17 +96,31 @@ export async function renderToString(
         : '';
 
     // Dev vs production script tags
-    const mode = options.mode ?? 'production';
-    const clientEntry = options.clientEntry ?? '/src/entry-client.ts';
-
     let scriptTags: string;
-    if (mode === 'development') {
-        scriptTags = [
-            `<script type="module" src="/@vite/client"></script>`,
-            `<script type="module" src="${clientEntry}"></script>`,
-        ].join('\n    ');
+    if (options.scriptTags) {
+        scriptTags = options.scriptTags;
     } else {
-        scriptTags = `<script type="module" src="/assets/entry-client.js"></script>`;
+        const mode = options.mode ?? 'production';
+        const clientEntry = options.clientEntry ?? '/src/entry-client.ts';
+        const basePath = options.basePath ?? '/assets/';
+        const cleanBasePath = basePath.endsWith('/') ? basePath : basePath + '/';
+
+        if (mode === 'development') {
+            scriptTags = [
+                `<script type="module" src="/@vite/client"></script>`,
+                `<script type="module" src="${clientEntry}"></script>`,
+            ].join('\n    ');
+        } else {
+            // Remove leading slash for manifest lookup if present
+            const manifestKey = clientEntry.startsWith('/') ? clientEntry.slice(1) : clientEntry;
+            let assetFile = 'entry-client.js'; // Fallback
+
+            if (options.manifest && options.manifest[manifestKey]) {
+                assetFile = options.manifest[manifestKey].file;
+            }
+
+            scriptTags = `<script type="module" src="${cleanBasePath}${assetFile}"></script>`;
+        }
     }
 
     return `<!DOCTYPE html>
@@ -180,8 +200,12 @@ export async function bootstrap(pages: Record<string, () => Promise<any>>): Prom
 
     // Try to find the component in the glob map
     // The path usually starts with ./routes/ or similar in the app space
-    // We try to match the tail of the key with the pagePath
-    const matchingKey = Object.keys(pages).find(key => key.endsWith(pagePath));
+    // We try to match the tail of the key with the pagePath.
+    // We sort the keys by length to ensure the shortest (most direct) match is evaluated first,
+    // preventing hydration hijacking (e.g. distinguishing index.js from admin/index.js if pagePath is index.js).
+    const matchingKey = Object.keys(pages)
+        .sort((a, b) => a.length - b.length)
+        .find(key => key.endsWith(pagePath));
 
     if (matchingKey) {
         try {

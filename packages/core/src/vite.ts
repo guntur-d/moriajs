@@ -76,15 +76,32 @@ export async function serveProductionAssets(
  * Generate the HTML shell for a page, with appropriate script tags
  * depending on dev vs production mode.
  */
-export function getHtmlScripts(mode: 'development' | 'production', config: Partial<MoriaConfig> = {}): string {
+export async function getHtmlScripts(mode: 'development' | 'production', config: Partial<MoriaConfig> = {}): Promise<string> {
+    const clientEntry = config.vite?.clientEntry ?? '/src/entry-client.ts';
+
     if (mode === 'development') {
-        const clientEntry = config.vite?.clientEntry ?? '/src/entry-client.ts';
         return [
             `<script type="module" src="/@vite/client"></script>`,
             `<script type="module" src="${clientEntry}"></script>`,
         ].join('\n    ');
     }
 
-    // Production: reference the built bundle
+    // Production: reference the built bundle via manifest
+    const rootDir = config.rootDir ?? process.cwd();
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const fullManifestPath = path.resolve(rootDir, 'dist/client/.vite/manifest.json');
+
+    if (fs.existsSync(fullManifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(fullManifestPath, 'utf-8'));
+        // Vite manifest keys are relative to root, usually 'src/entry-client.ts' or similar
+        // We need to match it against our clientEntry (dropping leading slash)
+        const entryKey = clientEntry.startsWith('/') ? clientEntry.slice(1) : clientEntry;
+        const entry = manifest[entryKey];
+
+        if (entry && entry.file) {
+            return `<script type="module" src="/assets/${entry.file}"></script>`;
+        }
+    }
     return `<script type="module" src="/assets/entry-client.js"></script>`;
 }

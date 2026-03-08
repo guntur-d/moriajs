@@ -282,12 +282,16 @@ export async function registerRoutes(
 
                     // Dynamic import of renderer (avoids circular deps)
                     const { renderToString } = await import('@moriajs/renderer');
+                    const { getHtmlScripts } = await import('./vite.js');
+
+                    const scriptTags = await getHtmlScripts(mode, config);
 
                     const html = await renderToString(component, {
                         title: (component as { title?: string }).title ?? 'MoriaJS App',
                         initialData,
                         mode,
                         clientEntry,
+                        scriptTags,
                     });
 
                     reply.type('text/html');

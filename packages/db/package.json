@@ -1,6 +1,6 @@
 {
   "name": "@moriajs/db",
-  "version": "0.4.13",
+  "version": "0.4.39",
   "type": "module",
   "description": "MoriaJS database — Kysely adapters with kysely-schema integration",
   "main": "./dist/index.js",
@@ -30,7 +30,8 @@
     "typescript": "^5.7.0",
     "rimraf": "^6.0.0",
     "@types/node": "^22.0.0",
-    "@types/better-sqlite3": "^7.6.0"
+    "@types/better-sqlite3": "^7.6.0",
+    "fastify": "^5.2.0"
   },
   "peerDependencies": {
     "@moriajs/core": "workspace:*"

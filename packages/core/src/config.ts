@@ -22,6 +22,8 @@ export interface MoriaConfig {
             origin?: string | string[] | boolean;
             credentials?: boolean;
         };
+        /** Helmet (CSP and security headers) configuration */
+        helmet?: Record<string, any> | boolean;
     };
 
     /** Database configuration */
@@ -36,6 +38,8 @@ export interface MoriaConfig {
         usePongo?: boolean;
         /** Database name (for mongo adapter) */
         dbName?: string;
+        /** Should the framework auto-register the database plugin? (default: true) */
+        autoRegister?: boolean;
     };
 
     /** Authentication configuration */
@@ -48,6 +52,8 @@ export interface MoriaConfig {
         cookieName?: string;
         /** Enable secure cookies (HTTPS only) */
         secureCookies?: boolean;
+        /** Should the framework auto-register the auth plugin? (default: true) */
+        autoRegister?: boolean;
     };
 
     /** Vite / build configuration */

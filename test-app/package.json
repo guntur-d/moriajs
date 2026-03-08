@@ -1,0 +1,28 @@
+{
+  "name": "test-app",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "node scripts/build.js",
+    "start": "node scripts/start.js"
+  },
+  "dependencies": {
+    "@moriajs/core": "^0.4.29",
+    "@moriajs/db": "^0.4.29",
+    "@moriajs/auth": "^0.4.29",
+    "@moriajs/renderer": "^0.4.29",
+    "@moriajs/ui": "^0.4.29",
+    "mithril": "^2.2.0",
+    "@hotwired/turbo": "^8.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "fastify": "^5.2.0",
+    "vite": "^6.0.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0",
+    "@types/mithril": "^2.2.0"
+  }
+}

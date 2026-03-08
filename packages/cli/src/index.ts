@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 
-const VERSION = '0.4.13';
+const VERSION = '0.4.14';
 
 export const cli = cac('moria');
 
@@ -96,14 +96,40 @@ cli
 
         try {
             const { build } = await import('vite');
+            const userConfig = await loadConfig();
 
             // Client build
             console.log(pc.dim('  → Building client bundle...'));
+
+            let clientEntry = (userConfig.vite as any)?.clientEntry ||
+                (fs.existsSync(path.resolve(process.cwd(), 'src/entry-client.ts'))
+                    ? 'src/entry-client.ts'
+                    : 'src/entry-client.js');
+
+            // Strip leading slash to prevent absolute path resolution issues on Windows
+            if (clientEntry.startsWith('/')) {
+                clientEntry = clientEntry.slice(1);
+            }
+
             await build({
                 root: process.cwd(),
+                configFile: false, // Don't use local vite.config.ts for the internal build
+                resolve: {
+                    alias: {
+                        '@moriajs/renderer': path.resolve(process.cwd(), 'node_modules/@moriajs/renderer/dist/index.js'),
+                        '@moriajs/core': path.resolve(process.cwd(), 'node_modules/@moriajs/core/dist/index.js'),
+                    },
+                },
+                optimizeDeps: {
+                    exclude: ['@moriajs/renderer', '@moriajs/core'],
+                },
                 build: {
                     outDir: 'dist/client',
                     emptyOutDir: true,
+                    manifest: true,
+                    rollupOptions: {
+                        input: path.resolve(process.cwd(), clientEntry),
+                    },
                 },
             });
             console.log(pc.green('  ✓ ') + 'Client build complete');

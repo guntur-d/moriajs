@@ -16,10 +16,12 @@
 import { cac } from 'cac';
 import pc from 'picocolors';
 import prompts from 'prompts';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const VERSION = '0.4.0';
+const pkgJsonPath = new URL('../package.json', import.meta.url);
+const pkgJsonStr = readFileSync(pkgJsonPath, 'utf8');
+const { version: VERSION } = JSON.parse(pkgJsonStr);
 
 export const cli = cac('create-moria');
 
@@ -40,6 +42,7 @@ function tsconfigContent(): string {
                 declaration: true,
                 declarationMap: true,
                 sourceMap: true,
+                types: ['node', 'vite/client'],
             },
             include: ['src'],
             exclude: ['node_modules', 'dist'],
@@ -117,6 +120,78 @@ ${dbConfig}
 `;
 }
 
+function viteConfigTs(): string {
+    return `import { defineConfig } from 'vite';
+
+export default defineConfig({
+  base: '/assets/',
+  build: {
+    outDir: 'dist/client',
+    assetsDir: '',
+    rollupOptions: {
+      input: 'src/entry-client.ts',
+    },
+    manifest: true,
+  },
+});
+`;
+}
+
+function viteConfigJs(): string {
+    return `import { defineConfig } from 'vite';
+
+export default defineConfig({
+  base: '/assets/',
+  build: {
+    outDir: 'dist/client',
+    assetsDir: '',
+    rollupOptions: {
+      input: 'src/entry-client.js',
+    },
+    manifest: true,
+  },
+});
+`;
+}
+
+function srcEnvDTs(): string {
+    return `/// <reference types="vite/client" />\n`;
+}
+
+// ─── Project scripts ────────────────────────────────────
+
+function scriptBuildJs(isTS: boolean): string {
+    return `import fs from 'node:fs';
+import { execSync } from 'node:child_process';
+
+console.log('--- Building MoriaJS App ---');
+${isTS ? `console.log('Compiling TypeScript...');
+execSync('npx tsc', { stdio: 'inherit' });` : `console.log('Copying JavaScript files...');
+if (fs.existsSync('dist')) {
+    fs.rmSync('dist', { recursive: true, force: true });
+}
+fs.cpSync('src', 'dist', {
+    recursive: true,
+    filter: (src) => !src.includes('entry-client') && !src.includes('vite.config')
+});`}
+
+console.log('Building client assets...');
+execSync('npx vite build --outDir dist/client', { stdio: 'inherit' });
+console.log('--- Build Complete ---');
+`;
+}
+
+function scriptStartJs(): string {
+    return `import { execSync } from 'node:child_process';
+
+console.log('Preparing production build...');
+execSync('node scripts/build.js', { stdio: 'inherit' });
+
+console.log('Starting server...');
+execSync('node dist/index.js', { stdio: 'inherit' });
+`;
+}
+
 // ─── Default template source files ─────────────────────
 
 function srcIndexTs(): string {
@@ -126,28 +201,22 @@ function srcIndexTs(): string {
 
 import { createApp } from '@moriajs/core';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const __appRoot = path.resolve(import.meta.dirname, '..');
+const configPath = pathToFileURL(path.resolve(import.meta.dirname, 'moria.config.js')).href;
+const { default: config } = await import(configPath);
 
-async function main() {
-    const { default: config } = await import('../moria.config.js');
-
-    const app = await createApp({
-        config: {
-            ...config,
-            mode: 'development',
-            rootDir: __appRoot,
-        },
-    });
-
-    const address = await app.listen();
-    console.log(\`\\n🏔️  MoriaJS running at \${address}\\n\`);
-}
-
-main().catch((err) => {
-    console.error('Failed to start:', err);
-    process.exit(1);
+const app = await createApp({
+    config: {
+        ...config,
+        mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+        rootDir: path.resolve(import.meta.dirname, '..'),
+    },
 });
+
+// Start listening (registers routes and starts the server)
+const address = await app.listen();
+console.log(\`\\n🏔️  MoriaJS running at \${address}\\n\`);
 `;
 }
 
@@ -157,15 +226,14 @@ function srcEntryClientTs(): string {
  * Hydrates the server-rendered page to make it interactive.
  */
 
-import { hydrate, getHydrationData } from '@moriajs/renderer';
-import HomePage from './routes/pages/index.js';
+import '@hotwired/turbo';
+import { bootstrap } from '@moriajs/renderer';
 
-const data = getHydrationData();
-const root = document.getElementById('app');
-
-if (root) {
-    hydrate(HomePage, root, data);
-}
+// Automatically discover and hydrate the correct page component.
+// We only include pages, not API routes.
+document.addEventListener('turbo:load', () => {
+    bootstrap(import.meta.glob('./routes/pages/**/*.{ts,js,tsx,jsx}')).catch(console.error);
+});
 `;
 }
 
@@ -175,15 +243,14 @@ function srcEntryClientJs(): string {
  * Hydrates the server-rendered page to make it interactive.
  */
 
-import { hydrate, getHydrationData } from '@moriajs/renderer';
-import HomePage from './routes/pages/index.js';
+import '@hotwired/turbo';
+import { bootstrap } from '@moriajs/renderer';
 
-const data = getHydrationData();
-const root = document.getElementById('app');
-
-if (root) {
-    hydrate(HomePage, root, data);
-}
+// Automatically discover and hydrate the correct page component.
+// We only include pages, not API routes.
+document.addEventListener('turbo:load', () => {
+    bootstrap(import.meta.glob('./routes/pages/**/*.{ts,js,tsx,jsx}')).catch(console.error);
+});
 `;
 }
 
@@ -192,10 +259,10 @@ function srcMiddlewareTs(): string {
  * Root middleware — runs on every request.
  */
 
-import { defineMiddleware } from '@moriajs/core';
+    import { defineMiddleware } from '@moriajs/core';
 
-export default defineMiddleware(async (request) => {
-    request.log.info(\`→ \${request.method} \${request.url}\`);
+    export default defineMiddleware(async (request) => {
+        request.log.info(\`→ \${request.method} \${request.url}\`);
 });
 `;
 }
@@ -351,15 +418,17 @@ function srcPageIndexTs(): string {
  */
 
 import m from 'mithril';
+import { Toaster, ConfirmationRegistry, confirm, toast } from '@moriajs/ui';
 
 /** Server-side data loader */
 export async function getServerData() {
+    // ...
     return {
         title: 'Welcome to MoriaJS',
         features: [
             'File-based routing',
             'SSR + client hydration',
-            'Middleware system',
+            'Centralized Confirmations',
             'Agnostic Database (Kysely/Pongo)',
             'JWT authentication',
         ],
@@ -373,38 +442,63 @@ export default {
     title: 'MoriaJS App',
     view(vnode: m.Vnode<{ serverData?: { title: string; features: string[] } }>) {
         const data = vnode.attrs?.serverData;
-        return m('main', { style: 'max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem' }, [
-            m('h1', { style: 'font-size:2.5rem;margin-bottom:0.5rem' }, '🏔️ ' + (data?.title ?? 'MoriaJS')),
-            m('p', { style: 'color:#666;font-size:1.1rem' }, 'Your full-stack Mithril.js app is up and running.'),
+        return m('div', [
+            // Global UI Components
+            m(Toaster),
+            m(ConfirmationRegistry),
             
-            m('div', { style: 'background:#f4f4f4;padding:1.5rem;border-radius:8px;margin:2rem 0;text-align:center' }, [
-                m('h3', { style: 'margin-top:0' }, 'Hydration Demo'),
-                m('p', 'Click the button below to verify that client-side hydration is working:'),
-                m('button', { 
-                    style: 'background:#007bff;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
-                    onclick: () => { count++; }
-                }, \`Count is \${count}\`),
-            ]),
+            m('main', { style: 'max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem' }, [
+                m('h1', { style: 'font-size:2.5rem;margin-bottom:0.5rem' }, '🏔️ ' + (data?.title ?? 'MoriaJS')),
+                m('p', { style: 'color:#666;font-size:1.1rem' }, 'Your full-stack Mithril.js app is up and running.'),
+                
+                m('div', { style: 'background:#f4f4f4;padding:1.5rem;border-radius:8px;margin:2rem 0;text-align:center' }, [
+                    m('h3', { style: 'margin-top:0' }, 'Hydration & UI Demo'),
+                    m('p', 'Click the button below to test the centralized confirmation dialog:'),
+                    m('div', { style: 'display:flex;gap:1rem;justify-content:center;align-items:center;margin-top:1rem;' }, [
+                        m('button', { 
+                            style: 'background:#007bff;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
+                            onclick: () => { count++; }
+                        }, \`Count is \${count}\`),
+                        m('button', { 
+                            style: 'background:#dc2626;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
+                            onclick: async () => { 
+                                const confirmed = await confirm({
+                                    title: 'Reset Counter?',
+                                    message: 'This will reset the counter to zero. Are you sure?',
+                                    confirmText: 'Yes, reset it',
+                                    type: 'danger'
+                                });
+                                if (confirmed) {
+                                    count = 0;
+                                    toast.success('Counter reset successfully');
+                                } else {
+                                    toast.info('Action cancelled');
+                                }
+                            }
+                        }, 'Reset Counter'),
+                    ])
+                ]),
 
-            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
-            m('h2', { style: 'font-size:1.3rem' }, 'Features'),
-            m('ul', { style: 'line-height:1.8' },
-                (data?.features ?? []).map((f: string) => m('li', f))
-            ),
-            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
-            m('h2', { style: 'font-size:1.3rem' }, 'Quick Links'),
-            m('ul', { style: 'line-height:1.8;display:flex;gap:1rem;padding:0;list-style:none' }, [
-                m('li', m('a', { href: '/api/hello', target: '_blank' }, 'Hello API')),
-                m('li', m('a', { href: '/api/health', target: '_blank' }, 'Health Check')),
-                m('li', m('a', { href: '/api/users/42', target: '_blank' }, 'User Params')),
-                m('li', m('a', { href: '/api/search?q=moria', target: '_blank' }, 'Search Query')),
-            ]),
-            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
-            m('p', { style: 'color:#999;font-size:0.9rem' }, [
-                'Edit ',
-                m('code', 'src/routes/pages/index.ts'),
-                ' to get started.',
-            ]),
+                m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+                m('h2', { style: 'font-size:1.3rem' }, 'Features'),
+                m('ul', { style: 'line-height:1.8' },
+                    (data?.features ?? []).map((f: string) => m('li', f))
+                ),
+                m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+                m('h2', { style: 'font-size:1.3rem' }, 'Quick Links'),
+                m('ul', { style: 'line-height:1.8;display:flex;gap:1rem;padding:0;list-style:none;flex-wrap:wrap;' }, [
+                    m('li', m('a', { href: '/api/hello', target: '_blank' }, 'Hello API')),
+                    m('li', m('a', { href: '/api/health', target: '_blank' }, 'Health Check')),
+                    m('li', m('a', { href: '/api/users/42', target: '_blank' }, 'User Params')),
+                    m('li', m('a', { href: '/api/search?q=moria', target: '_blank' }, 'Search Query')),
+                ]),
+                m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+                m('p', { style: 'color:#999;font-size:0.9rem' }, [
+                    'Edit ',
+                    m('code', 'src/routes/pages/index.ts'),
+                    ' to get started.',
+                ]),
+            ])
         ]);
     },
 };
@@ -417,6 +511,7 @@ function srcPageIndexJs(): string {
  */
 
 import m from 'mithril';
+import { Toaster, ConfirmationRegistry, confirm, toast } from '@moriajs/ui';
 
 /** Server-side data loader */
 export async function getServerData() {
@@ -425,7 +520,7 @@ export async function getServerData() {
         features: [
             'File-based routing',
             'SSR + client hydration',
-            'Middleware system',
+            'Centralized Confirmations',
             'Agnostic Database (Kysely/Pongo)',
             'JWT authentication',
         ],
@@ -439,38 +534,63 @@ export default {
     title: 'MoriaJS App',
     view(vnode) {
         const data = vnode.attrs?.serverData;
-        return m('main', { style: 'max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem' }, [
-            m('h1', { style: 'font-size:2.5rem;margin-bottom:0.5rem' }, '🏔️ ' + (data?.title ?? 'MoriaJS')),
-            m('p', { style: 'color:#666;font-size:1.1rem' }, 'Your full-stack Mithril.js app is up and running.'),
+        return m('div', [
+            // Global UI Components
+            m(Toaster),
+            m(ConfirmationRegistry),
 
-            m('div', { style: 'background:#f4f4f4;padding:1.5rem;border-radius:8px;margin:2rem 0;text-align:center' }, [
-                m('h3', { style: 'margin-top:0' }, 'Hydration Demo'),
-                m('p', 'Click the button below to verify that client-side hydration is working:'),
-                m('button', { 
-                    style: 'background:#007bff;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
-                    onclick: () => { count++; }
-                }, \`Count is \${count}\`),
-            ]),
+            m('main', { style: 'max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem' }, [
+                m('h1', { style: 'font-size:2.5rem;margin-bottom:0.5rem' }, '🏔️ ' + (data?.title ?? 'MoriaJS')),
+                m('p', { style: 'color:#666;font-size:1.1rem' }, 'Your full-stack Mithril.js app is up and running.'),
 
-            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
-            m('h2', { style: 'font-size:1.3rem' }, 'Features'),
-            m('ul', { style: 'line-height:1.8' },
-                (data?.features ?? []).map((f) => m('li', f))
-            ),
-            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
-            m('h2', { style: 'font-size:1.3rem' }, 'Quick Links'),
-            m('ul', { style: 'line-height:1.8;display:flex;gap:1rem;padding:0;list-style:none' }, [
-                m('li', m('a', { href: '/api/hello', target: '_blank' }, 'Hello API')),
-                m('li', m('a', { href: '/api/health', target: '_blank' }, 'Health Check')),
-                m('li', m('a', { href: '/api/users/42', target: '_blank' }, 'User Params')),
-                m('li', m('a', { href: '/api/search?q=moria', target: '_blank' }, 'Search Query')),
-            ]),
-            m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
-            m('p', { style: 'color:#999;font-size:0.9rem' }, [
-                'Edit ',
-                m('code', 'src/routes/pages/index.js'),
-                ' to get started.',
-            ]),
+                m('div', { style: 'background:#f4f4f4;padding:1.5rem;border-radius:8px;margin:2rem 0;text-align:center' }, [
+                    m('h3', { style: 'margin-top:0' }, 'Hydration & UI Demo'),
+                    m('p', 'Click the button below to test the centralized confirmation dialog:'),
+                    m('div', { style: 'display:flex;gap:1rem;justify-content:center;align-items:center;margin-top:1rem;' }, [
+                        m('button', { 
+                            style: 'background:#007bff;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
+                            onclick: () => { count++; }
+                        }, \`Count is \${count}\`),
+                        m('button', { 
+                            style: 'background:#dc2626;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:4px;font-size:1rem;cursor:pointer',
+                            onclick: async () => { 
+                                const confirmed = await confirm({
+                                    title: 'Reset Counter?',
+                                    message: 'This will reset the counter to zero. Are you sure?',
+                                    confirmText: 'Yes, reset it',
+                                    type: 'danger'
+                                });
+                                if (confirmed) {
+                                    count = 0;
+                                    toast.success('Counter reset successfully');
+                                } else {
+                                    toast.info('Action cancelled');
+                                }
+                            }
+                        }, 'Reset Counter'),
+                    ])
+                ]),
+
+                m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+                m('h2', { style: 'font-size:1.3rem' }, 'Features'),
+                m('ul', { style: 'line-height:1.8' },
+                    (data?.features ?? []).map((f) => m('li', f))
+                ),
+                m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+                m('h2', { style: 'font-size:1.3rem' }, 'Quick Links'),
+                m('ul', { style: 'line-height:1.8;display:flex;gap:1rem;padding:0;list-style:none;flex-wrap:wrap;' }, [
+                    m('li', m('a', { href: '/api/hello', target: '_blank' }, 'Hello API')),
+                    m('li', m('a', { href: '/api/health', target: '_blank' }, 'Health Check')),
+                    m('li', m('a', { href: '/api/users/42', target: '_blank' }, 'User Params')),
+                    m('li', m('a', { href: '/api/search?q=moria', target: '_blank' }, 'Search Query')),
+                ]),
+                m('hr', { style: 'border:none;border-top:1px solid #eee;margin:1.5rem 0' }),
+                m('p', { style: 'color:#999;font-size:0.9rem' }, [
+                    'Edit ',
+                    m('code', 'src/routes/pages/index.js'),
+                    ' to get started.',
+                ]),
+            ])
         ]);
     },
 };
@@ -484,30 +604,25 @@ function srcIndexJs(): string {
 
 import { createApp } from '@moriajs/core';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const __appRoot = path.resolve(__dirname, '..');
 
-async function main() {
-    const { default: config } = await import('../moria.config.js');
+const configPath = pathToFileURL(path.resolve(__dirname, 'moria.config.js')).href;
+const { default: config } = await import(configPath);
 
-    const app = await createApp({
-        config: {
-            ...config,
-            mode: 'development',
-            rootDir: __appRoot,
-        },
-    });
-
-    const address = await app.listen();
-    console.log(\`\\n🏔️  MoriaJS running at \${address}\\n\`);
-}
-
-main().catch((err) => {
-    console.error('Failed to start:', err);
-    process.exit(1);
+const app = await createApp({
+    config: {
+        ...config,
+        mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+        rootDir: __appRoot,
+    },
 });
+
+// Start listening (registers routes and starts the server)
+const address = await app.listen();
+console.log(\`\\n🏔️  MoriaJS running at \${address}\\n\`);
 `;
 }
 
@@ -628,27 +743,34 @@ cli
             mkdirs(
                 join(dir, 'src', 'routes', 'api'),
                 join(dir, 'src', 'routes', 'api', 'users'),
-                join(dir, 'src', 'routes', 'pages')
+                join(dir, 'src', 'routes', 'pages'),
+                join(dir, 'scripts')
             );
         } else {
-            mkdirs(join(dir, 'src', 'routes', 'api'));
+            mkdirs(
+                join(dir, 'src', 'routes', 'api'),
+                join(dir, 'scripts')
+            );
         }
 
         // ─── package.json ───────────────────────────────────
         const deps: Record<string, string> = {
-            '@moriajs/core': '^0.3.0',
-            '@moriajs/db': '^0.3.0',
-            '@moriajs/auth': '^0.3.0',
+            '@moriajs/core': '^0.4.37',
+            '@moriajs/db': '^0.4.37',
+            '@moriajs/auth': '^0.4.37',
         };
 
         if (template === 'default') {
-            deps['@moriajs/renderer'] = '^0.3.0';
-            deps['@moriajs/ui'] = '^0.3.0';
+            deps['@moriajs/renderer'] = '^0.4.37';
+            deps['@moriajs/ui'] = '^0.4.37';
             deps['mithril'] = '^2.2.0';
+            deps['@hotwired/turbo'] = '^8.0.0';
         }
 
         const devDeps: Record<string, string> = {
             tsx: '^4.0.0',
+            fastify: '^5.2.0',
+            vite: '^6.0.0',
         };
 
         if (isTS) {
@@ -664,10 +786,13 @@ cli
             version: '0.1.0',
             type: 'module',
             private: true,
+            engines: {
+                node: '>=20.11.0',
+            },
             scripts: {
                 dev: `tsx watch src/index.${ext}`,
-                build: isTS ? 'tsc' : 'echo "No build step for JS"',
-                start: `node dist/index.js`,
+                build: 'node scripts/build.js',
+                start: 'node scripts/start.js',
             },
             dependencies: deps,
             devDependencies: devDeps,
@@ -675,15 +800,23 @@ cli
 
         write(join(dir, 'package.json'), JSON.stringify(pkgJson, null, 2) + '\n');
 
-        // ─── Config ─────────────────────────────────────────
         write(
-            join(dir, `moria.config.${ext}`),
+            join(dir, `src/moria.config.${ext}`),
             isTS ? moriaConfigTs(db, usePongo) : moriaConfigJs(db, usePongo)
         );
+
+        // ─── Vite Config ────────────────────────────────────
+        if (template === 'default') {
+            write(
+                join(dir, `vite.config.${ext}`),
+                isTS ? viteConfigTs() : viteConfigJs()
+            );
+        }
 
         // ─── tsconfig.json ──────────────────────────────────
         if (isTS) {
             write(join(dir, 'tsconfig.json'), tsconfigContent() + '\n');
+            write(join(dir, 'src/env.d.ts'), srcEnvDTs());
         }
 
         // ─── .env ───────────────────────────────────────────
@@ -691,6 +824,35 @@ cli
 
         // ─── .gitignore ─────────────────────────────────────
         write(join(dir, '.gitignore'), gitignoreContent());
+
+        // ─── README.md ──────────────────────────────────────
+        const readmeContent = `# ${name}
+
+🏔️ A full-stack MoriaJS application.
+
+## Getting Started
+
+1. Install dependencies:
+   \`\`\`bash
+   pnpm install
+   \`\`\`
+
+2. Start the development server:
+   \`\`\`bash
+   pnpm dev
+   \`\`\`
+
+3. Build and start for production:
+   \`\`\`bash
+   pnpm build
+   pnpm start
+   \`\`\`
+`;
+        write(join(dir, 'README.md'), readmeContent);
+
+        // ─── Scripts ────────────────────────────────────────
+        write(join(dir, 'scripts/build.js'), scriptBuildJs(isTS));
+        write(join(dir, 'scripts/start.js'), scriptStartJs());
 
         // ─── Source files ───────────────────────────────────
         if (template === 'default') {
@@ -741,7 +903,7 @@ cli
         }
 
         // ─── Done ───────────────────────────────────────────
-        const filesCount = template === 'default' ? (isTS ? 9 : 7) : (isTS ? 6 : 5);
+        const filesCount = template === 'default' ? (isTS ? 11 : 9) : (isTS ? 8 : 7);
 
         console.log(pc.green(`✅ Created ${filesCount} files`));
         console.log();
@@ -750,6 +912,10 @@ cli
         console.log(pc.white(`  cd ${name}`));
         console.log(pc.white('  pnpm install'));
         console.log(pc.white('  pnpm dev'));
+        console.log();
+        console.log(pc.dim('  NOTE: If using pnpm, you may need to run:'));
+        console.log(pc.dim('  pnpm approve-builds better-sqlite3'));
+        console.log(pc.dim('  to enable the database engine on Windows.'));
         console.log();
         console.log(pc.dim(`  Then open http://localhost:3000`));
         console.log();

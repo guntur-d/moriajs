@@ -17,6 +17,9 @@ importers:
 
   apps/playground:
     dependencies:
+      '@hotwired/turbo':
+        specifier: ^8.0.0
+        version: 8.0.23
       '@moriajs/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -29,6 +32,9 @@ importers:
       '@moriajs/renderer':
         specifier: workspace:*
         version: link:../../packages/renderer
+      '@moriajs/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       mithril:
         specifier: ^2.2.0
         version: 2.3.8
@@ -204,6 +210,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
+      fastify:
+        specifier: ^5.2.0
+        version: 5.7.4
       rimraf:
         specifier: ^6.0.0
         version: 6.1.2
@@ -642,6 +651,10 @@ packages:
 
   '@fastify/static@9.0.0':
     resolution: {integrity: sha512-r64H8Woe/vfilg5RTy7lwWlE8ZZcTrc3kebYFMEUBrMqlydhQyoiExQXdYAy2REVpST/G35+stAM8WYp1WGmMA==}
+
+  '@hotwired/turbo@8.0.23':
+    resolution: {integrity: sha512-GZ7cijxEZ6Ig71u7rD6LHaRv/wcE/hNsc+nEfiWOkLNqUgLOwo5MNGWOy5ZV9ZUDSiQx1no7YxjTNnT4O6//cQ==}
+    engines: {node: '>= 18'}
 
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
@@ -1924,6 +1937,8 @@ snapshots:
       fastify-plugin: 5.1.0
       fastq: 1.20.1
       glob: 13.0.3
+
+  '@hotwired/turbo@8.0.23': {}
 
   '@isaacs/cliui@9.0.0': {}
 

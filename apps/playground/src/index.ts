@@ -11,7 +11,7 @@ import path from 'node:path';
 const __appRoot = path.resolve(import.meta.dirname, '..');
 
 const config = defineConfig({
-    mode: 'development',
+    mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
     rootDir: __appRoot,
     server: {
         port: 3000,

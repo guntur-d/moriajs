@@ -7,6 +7,7 @@
  */
 
 import m from 'mithril';
+import { Toaster, ConfirmationRegistry, confirm, toast } from '@moriajs/ui';
 
 // ─── Server Data Loader ─────────────────────────────────
 /**
@@ -51,15 +52,40 @@ const HomePage: m.Component = {
         : undefined;
 
     return m('div', { style: styles.page }, [
+      m(Toaster),
+      m(ConfirmationRegistry),
+
       m('div', { style: styles.container }, [
         m('h1', { style: styles.title }, '🏔️ MoriaJS'),
         m('p', { style: styles.subtitle }, 'The full-stack meta-framework for Mithril.js'),
 
-        // Interactive element — proves hydration works
-        m('button', {
-          style: styles.button,
-          onclick: () => { clickCount++; },
-        }, `Clicks: ${clickCount} (proves hydration works!)`),
+        m('.actions', { style: { display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '2rem' } }, [
+          // Interactive element — proves hydration works
+          m('button', {
+            style: styles.button,
+            onclick: () => { clickCount++; },
+          }, `Clicks: ${clickCount}`),
+
+          // Test Confirmation
+          m('button', {
+            style: { ...styles.button, background: 'linear-gradient(135deg, #f87171 0%, #ef4444 100%)' },
+            onclick: async () => {
+              const confirmed = await confirm({
+                title: 'Delete everything?',
+                message: 'This will reset the click counter to zero. Are you sure?',
+                confirmText: 'Yes, reset',
+                type: 'danger',
+              });
+
+              if (confirmed) {
+                clickCount = 0;
+                toast.success('Counter reset successfully');
+              } else {
+                toast.info('Action cancelled');
+              }
+            },
+          }, 'Reset Counter (Confirm)'),
+        ]),
 
         // Features grid
         data

@@ -29,6 +29,8 @@ export interface DatabaseConfig {
     };
     /** Database name (for mongo) */
     dbName?: string;
+    /** Custom JSONB column name for Pongo (default: 'data' in Pongo v0.16.x) */
+    pongoJsonColumn?: string;
 }
 
 /**
@@ -53,14 +55,15 @@ export class KyselyAdapter implements MoriaDBAdapter {
     private async createDialect(config: DatabaseConfig) {
         switch (config.adapter) {
             case 'pg': {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-                const pg = (globalThis as any).require('pg') as { Pool: new (opts: Record<string, unknown>) => unknown };
+                // @ts-ignore - pg types might not be present if installed as optional dependency
+                const pgModule = await import('pg');
+                const pg = (pgModule.default || pgModule) as any;
                 return new PostgresDialect({
                     pool: new pg.Pool({
                         connectionString: config.url,
                         min: config.pool?.min ?? 2,
                         max: config.pool?.max ?? 10,
-                    }) as any,
+                    }),
                 });
             }
             case 'sqlite': {
@@ -90,6 +93,10 @@ export class KyselyAdapter implements MoriaDBAdapter {
         }
         const result = await query.limit(1).executeTakeFirst();
         return (result as T) || null;
+    }
+
+    async insert<T>(collection: string, data: any): Promise<T> {
+        return this.insertOne<T>(collection, data);
     }
 
     async insertOne<T>(collection: string, data: any): Promise<T> {
@@ -177,6 +184,10 @@ export class PongoAdapter implements MoriaDBAdapter {
         return this.mapIdResult(result);
     }
 
+    async insert<T extends Record<string, any> = any>(collection: string, data: any): Promise<T> {
+        return this.insertOne<T>(collection, data);
+    }
+
     async insertOne<T extends Record<string, any> = any>(collection: string, data: any): Promise<T> {
         const result = await this.client!.db().collection<T>(collection).insertOne(data);
         return this.mapIdResult(result);
@@ -251,6 +262,10 @@ export class MongoAdapter implements MoriaDBAdapter {
         return this.mapIdResult(result);
     }
 
+    async insert<T extends Record<string, any> = any>(collection: string, data: any): Promise<T> {
+        return this.insertOne<T>(collection, data);
+    }
+
     async insertOne<T extends Record<string, any> = any>(collection: string, data: any): Promise<T> {
         const db = this.client!.db(this.config.dbName);
         const result = await db.collection(collection).insertOne(data);
@@ -293,6 +308,11 @@ export async function createDatabase(config: DatabaseConfig): Promise<MoriaDB> {
 }
 
 /**
+ * Alias for createDatabase
+ */
+export const createDb = createDatabase;
+
+/**
  * MoriaJS database plugin for Fastify integration.
  */
 export function createDatabasePlugin(config: DatabaseConfig) {
@@ -300,7 +320,9 @@ export function createDatabasePlugin(config: DatabaseConfig) {
         name: '@moriajs/db',
         async register({ server }: { server: any }) {
             const db = await createDatabase(config);
-            server.decorate('db', db);
+            if (!server.hasDecorator('db')) {
+                server.decorate('db', db);
+            }
 
             server.addHook('onClose', async () => {
                 await db.disconnect();

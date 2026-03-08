@@ -23,7 +23,7 @@ MoriaJS is a batteries-included full-stack framework built on **[Fastify](https:
 - 🗄️ **Database-agnostic** — Standardized CRUD API with support for Kysely (SQL) and Pongo (Postgres Document Store)
 - 🔐 **Auth built-in** — JWT + httpOnly cookies with pluggable auth providers
 - 🧩 **Plugin system** — Extend the framework with `defineMoriaPlugin()`
-- 🎨 **UI components** — Toaster notifications, modals, and layout primitives
+- 🎨 **UI components** — Toaster notifications, modals, and centralized confirmation dialogs
 - 📦 **Monorepo** — pnpm workspaces + Turborepo for fast, organized development
 
 ## Status
@@ -47,6 +47,23 @@ npm install
 npm run dev
 # → Server running at http://localhost:3000
 ```
+
+### Deployment
+
+To run your app in production:
+
+```bash
+# Set production environment
+export NODE_ENV=production
+
+# Build the project (for TypeScript projects)
+npm run build
+
+# Start the production server
+npm start
+```
+
+For JavaScript projects, `npm start` runs the source directly. For TypeScript projects, it runs from the `dist` directory.
 
 ## Development
 
@@ -88,7 +105,7 @@ The playground app at `apps/playground/` is a working example that imports `@mor
 import { createApp, defineConfig } from '@moriajs/core';
 
 const config = defineConfig({
-  mode: 'development',
+  mode: process.env.NODE_ENV || 'production',
   server: { port: 3000 },
 });
 
@@ -107,7 +124,7 @@ Create a `moria.config.ts` in your project root:
 import { defineConfig } from '@moriajs/core';
 
 export default defineConfig({
-  mode: 'development',      // 'development' | 'production'
+  mode: process.env.NODE_ENV || 'production', // 'development' | 'production'
   server: {
     port: 3000,
     host: '0.0.0.0',
@@ -329,29 +346,42 @@ await hydrate(App, document.getElementById('app')!);
 
 ### 8. UI Components
 
-Built-in Mithril.js components — CSS-framework agnostic.
+Built-in Mithril.js components — CSS-framework agnostic. Includes imperative utilities for notifications and confirmations.
 
 ```ts
 import m from 'mithril';
-import { toast, Toaster, Modal } from '@moriajs/ui';
+import { toast, Toaster, confirm, ConfirmationRegistry, Modal } from '@moriajs/ui';
 
-// Toast notifications
+// 1. Toast notifications
 toast.success('Saved successfully!');
-toast.error('Something went wrong');
-toast.warning('Check your input');
-toast.info('New update available');
 
-// In your root layout — mount the Toaster once
+// 2. Centralized Confirmations (Imperative)
+const deleteUser = async () => {
+  const confirmed = await confirm({
+    title: 'Delete User',
+    message: 'Are you sure? This action cannot be undone.',
+    confirmText: 'Delete',
+    type: 'danger',
+  });
+
+  if (confirmed) {
+    // Proceed...
+  }
+};
+
+// 3. Root Layout Setup
+// Mount Toaster and ConfirmationRegistry once in your layout
 const Layout = {
   view(vnode) {
     return m('div', [
-      m(Toaster),           // Toast container
-      vnode.children,        // Page content
+      m(Toaster),
+      m(ConfirmationRegistry),
+      vnode.children,
     ]);
   },
 };
 
-// Modal dialog
+// 4. Modal component (declarative)
 let showModal = false;
 
 const Page = {
@@ -446,6 +476,7 @@ moria generate     # Generate routes, components, models
 - [Database](./packages/db/src/index.ts) — Database adapters
 - [Auth](./packages/auth/src/index.ts) — Authentication system
 - [Renderer](./packages/renderer/src/index.ts) — SSR/CSR rendering
+- [SSR Guidelines](./packages/renderer/SSR_GUIDELINES.md) — Isomorphic component best practices
 - [UI Components](./packages/ui/src/index.ts) — Toaster, Modal
 
 ## Roadmap
