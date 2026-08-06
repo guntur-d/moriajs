@@ -1,6 +1,6 @@
 {
   "name": "@moriajs/db",
-  "version": "0.4.39",
+  "version": "0.4.40",
   "type": "module",
   "description": "MoriaJS database — Kysely adapters with kysely-schema integration",
   "main": "./dist/index.js",

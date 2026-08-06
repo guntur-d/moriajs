@@ -46,19 +46,6 @@ export interface MoriaApp {
 }
 
 /**
- * Agnostic Database Interface.
- * Implemented by @moriajs/db.
- */
-export interface MoriaDB {
-    find<T extends Record<string, any> = any>(collection: string, filter?: any): Promise<T[]>;
-    findOne<T extends Record<string, any> = any>(collection: string, filter?: any): Promise<T | null>;
-    insertOne<T extends Record<string, any> = any>(collection: string, data: any): Promise<T>;
-    updateOne(collection: string, filter: any, data: any): Promise<void>;
-    deleteOne(collection: string, filter: any): Promise<void>;
-    raw<T>(): T;
-}
-
-/**
  * Base Auth User.
  */
 export interface AuthUser {
@@ -73,8 +60,6 @@ export interface AuthUser {
  */
 declare module 'fastify' {
     interface FastifyInstance {
-        /** Moria Agnostic DB (if @moriajs/db is registered) */
-        db: MoriaDB;
         /** Sign in a user and set JWT cookie (if @moriajs/auth is registered) */
         signIn(user: AuthUser, reply: FastifyReply): Promise<string>;
         /** Sign out a user and clear JWT cookie (if @moriajs/auth is registered) */
@@ -199,25 +184,23 @@ export async function createApp(options: MoriaAppOptions = {}): Promise<MoriaApp
 
     if (config.database && config.database.autoRegister !== false) {
         try {
-            // @ts-ignore
-            const resolved = import.meta.resolve('@moriajs/db');
-            const { createDatabasePlugin } = await import(resolved);
-            await app.use(createDatabasePlugin(config.database));
+            const { createDatabasePlugin } = await import('@moriajs/db');
+            await app.use(createDatabasePlugin(config.database as any));
             server.log.info('Auto-registered @moriajs/db plugin');
         } catch (err) {
-            server.log.warn(`Failed to auto-register @moriajs/db: ${err}`);
+            server.log.error(`Failed to auto-register @moriajs/db: ${err}`);
+            throw err;
         }
     }
 
     if (config.auth && config.auth.autoRegister !== false) {
         try {
-            // @ts-ignore
-            const resolved = import.meta.resolve('@moriajs/auth');
-            const { createAuthPlugin } = await import(resolved);
-            await app.use(createAuthPlugin(config.auth));
+            const { createAuthPlugin } = await import('@moriajs/auth');
+            await app.use(createAuthPlugin(config.auth as any));
             server.log.info('Auto-registered @moriajs/auth plugin');
         } catch (err) {
-            server.log.warn(`Failed to auto-register @moriajs/auth: ${err}`);
+            server.log.error(`Failed to auto-register @moriajs/auth: ${err}`);
+            throw err;
         }
     }
 

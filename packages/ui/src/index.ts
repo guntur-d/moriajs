@@ -280,6 +280,18 @@ export const confirm = (options: string | ConfirmationOptions): Promise<boolean>
 };
 
 /**
+ * Dismiss a pending confirmation, resolving its promise with `result`.
+ */
+function dismissConfirm(id: string, result: boolean): void {
+    const index = confirmations.findIndex((conf) => conf.id === id);
+    if (index !== -1) {
+        const [conf] = confirmations.splice(index, 1);
+        conf.resolve(result);
+        m.redraw();
+    }
+}
+
+/**
  * ConfirmationRegistry component.
  * Mount once in your app layout to handle imperative confirmation calls.
  */
@@ -291,14 +303,7 @@ export const ConfirmationRegistry: m.Component = {
                 m(Modal, {
                     isOpen: true,
                     title: c.title || 'Confirm',
-                    onClose: () => {
-                        const index = confirmations.findIndex((conf) => conf.id === c.id);
-                        if (index !== -1) {
-                            confirmations.splice(index, 1);
-                            c.resolve(false);
-                            m.redraw();
-                        }
-                    },
+                    onClose: () => dismissConfirm(c.id, false),
                 }, [
                     m('p', { style: { marginBottom: '1.5rem', color: '#374151' } }, c.message),
                     m('.moria-modal-actions', {
@@ -319,14 +324,7 @@ export const ConfirmationRegistry: m.Component = {
                                 fontSize: '0.875rem',
                                 fontWeight: '500',
                             },
-                            onclick: () => {
-                                const index = confirmations.findIndex((conf) => conf.id === c.id);
-                                if (index !== -1) {
-                                    confirmations.splice(index, 1);
-                                    c.resolve(false);
-                                    m.redraw();
-                                }
-                            }
+                            onclick: () => dismissConfirm(c.id, false),
                         }, c.cancelText || 'Cancel'),
                         m('button', {
                             style: {
@@ -339,14 +337,7 @@ export const ConfirmationRegistry: m.Component = {
                                 fontSize: '0.875rem',
                                 fontWeight: '500',
                             },
-                            onclick: () => {
-                                const index = confirmations.findIndex((conf) => conf.id === c.id);
-                                if (index !== -1) {
-                                    confirmations.splice(index, 1);
-                                    c.resolve(true);
-                                    m.redraw();
-                                }
-                            }
+                            onclick: () => dismissConfirm(c.id, true),
                         }, c.confirmText || 'Confirm'),
                     ])
                 ])

@@ -93,14 +93,18 @@ export async function getHtmlScripts(mode: 'development' | 'production', config:
     const fullManifestPath = path.resolve(rootDir, 'dist/client/.vite/manifest.json');
 
     if (fs.existsSync(fullManifestPath)) {
-        const manifest = JSON.parse(fs.readFileSync(fullManifestPath, 'utf-8'));
-        // Vite manifest keys are relative to root, usually 'src/entry-client.ts' or similar
-        // We need to match it against our clientEntry (dropping leading slash)
-        const entryKey = clientEntry.startsWith('/') ? clientEntry.slice(1) : clientEntry;
-        const entry = manifest[entryKey];
+        try {
+            const manifest = JSON.parse(fs.readFileSync(fullManifestPath, 'utf-8'));
+            // Vite manifest keys are relative to root, usually 'src/entry-client.ts' or similar
+            // We need to match it against our clientEntry (dropping leading slash)
+            const entryKey = clientEntry.startsWith('/') ? clientEntry.slice(1) : clientEntry;
+            const entry = manifest[entryKey];
 
-        if (entry && entry.file) {
-            return `<script type="module" src="/assets/${entry.file}"></script>`;
+            if (entry && entry.file) {
+                return `<script type="module" src="/assets/${entry.file}"></script>`;
+            }
+        } catch {
+            // Manifest parse failed, fall through to default
         }
     }
     return `<script type="module" src="/assets/entry-client.js"></script>`;

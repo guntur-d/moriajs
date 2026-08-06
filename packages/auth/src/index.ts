@@ -10,6 +10,9 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { OAuthProvider } from './providers/types.js';
 import crypto from 'node:crypto';
 
+// Import @fastify/cookie types so FastifyReply.setCookie/clearCookie are visible
+import '@fastify/cookie';
+
 // ─── Re-exports ──────────────────────────────────────
 export { googleProvider } from './providers/google.js';
 export { githubProvider } from './providers/github.js';
@@ -48,6 +51,12 @@ export interface AuthConfig {
     successRedirect?: string;
     /** Default redirect after failed OAuth (default: '/') */
     failureRedirect?: string;
+    /**
+     * Public base URL of the app (e.g. 'https://example.com'). When set, OAuth
+     * callback URLs are built from this value instead of the incoming Host
+     * header, preventing Host-header poisoning of the OAuth redirect_uri.
+     */
+    appUrl?: string;
 }
 
 /**
@@ -92,11 +101,10 @@ export interface AuthProvider {
 export function createAuthPlugin(config: AuthConfig) {
     return {
         name: '@moriajs/auth',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async register({ server }: { server: any }) {
+        async register({ server }: { server: FastifyInstance }) {
             const jwt = await import('@fastify/jwt');
 
-            await (server as FastifyInstance).register(jwt.default, {
+            await server.register(jwt.default, {
                 secret: config.secret,
                 cookie: {
                     cookieName: config.cookieName ?? 'moria_token',
@@ -112,10 +120,12 @@ export function createAuthPlugin(config: AuthConfig) {
                         { expiresIn: config.expiresIn ?? '7d' }
                     );
 
-                    reply.header('Set-Cookie',
-                        `${config.cookieName ?? 'moria_token'}=${token}; HttpOnly; Path=${config.cookiePath ?? '/'}; SameSite=${config.sameSite ?? 'Lax'}${(config.secureCookies ?? process.env.NODE_ENV === 'production') ? '; Secure' : ''
-                        }`
-                    );
+                    reply.setCookie(config.cookieName ?? 'moria_token', token, {
+                        httpOnly: true,
+                        path: config.cookiePath ?? '/',
+                        sameSite: (config.sameSite ?? 'lax') as 'strict' | 'lax' | 'none',
+                        secure: config.secureCookies ?? process.env.NODE_ENV === 'production',
+                    });
 
                     return token;
                 });
@@ -124,25 +134,45 @@ export function createAuthPlugin(config: AuthConfig) {
             // Auth utility: sign out (clear cookie)
             if (!server.hasDecorator('signOut')) {
                 server.decorate('signOut', async (_request: FastifyRequest, reply: FastifyReply) => {
-                    reply.header('Set-Cookie',
-                        `${config.cookieName ?? 'moria_token'}=; HttpOnly; Path=${config.cookiePath ?? '/'}; Max-Age=0`
-                    );
+                    reply.clearCookie(config.cookieName ?? 'moria_token', {
+                        httpOnly: true,
+                        path: config.cookiePath ?? '/',
+                        sameSite: (config.sameSite ?? 'lax') as 'strict' | 'lax' | 'none',
+                        secure: config.secureCookies ?? process.env.NODE_ENV === 'production',
+                    });
                 });
             }
 
             // ─── Register OAuth providers ────────────────────
             if (config.providers && config.providers.length > 0) {
-                registerOAuthRoutes(server as FastifyInstance, config);
+                registerOAuthRoutes(server, config);
             }
 
-            (server as FastifyInstance).log.info('@moriajs/auth: JWT auth plugin registered');
+            server.log.info('@moriajs/auth: JWT auth plugin registered');
 
             if (config.providers?.length) {
                 const names = config.providers.map((p) => p.name).join(', ');
-                (server as FastifyInstance).log.info(`@moriajs/auth: OAuth providers registered: ${names}`);
+                server.log.info(`@moriajs/auth: OAuth providers registered: ${names}`);
             }
         },
     };
+}
+
+/**
+ * Build the callback URL for an OAuth provider.
+ *
+ * Uses the configured `appUrl` when available (prevents Host-header
+ * poisoning); otherwise falls back to the request's protocol + hostname.
+ * The redirect path itself is developer-provided via the provider config.
+ */
+function buildCallbackUrl(config: AuthConfig, request: FastifyRequest, callbackPath: string): string {
+    if (config.appUrl) {
+        const base = config.appUrl.replace(/\/$/, '');
+        return `${base}${callbackPath}`;
+    }
+    const protocol = request.protocol ?? 'http';
+    const host = request.hostname;
+    return `${protocol}://${host}${callbackPath}`;
 }
 
 /**
@@ -157,18 +187,21 @@ function registerOAuthRoutes(server: FastifyInstance, config: AuthConfig) {
         server.get(authPath, async (request, reply) => {
             const state = crypto.randomBytes(16).toString('hex');
 
-            // Store state in a short-lived cookie for CSRF protection
-            reply.header('Set-Cookie',
-                `moria_oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`
-            );
-
-            // Build the full callback URL from the request
-            const protocol = request.protocol ?? 'http';
-            const host = request.hostname;
-            const fullCallbackUrl = `${protocol}://${host}${callbackPath}`;
+            // Store state in a short-lived cookie for CSRF protection.
+            // Marked Secure in production (or when secureCookies is set) and
+            // SameSite=Strict to further harden the CSRF defense.
+            const secure = config.secureCookies ?? process.env.NODE_ENV === 'production';
+            reply.setCookie('moria_oauth_state', state, {
+                httpOnly: true,
+                path: '/',
+                maxAge: 600,
+                sameSite: 'strict',
+                secure,
+            });
 
             // Get auth URL and inject the full callback URL
             let authUrl = provider.getAuthUrl(state);
+            const fullCallbackUrl = buildCallbackUrl(config, request, callbackPath);
             authUrl = authUrl.replace('redirect_uri=', `redirect_uri=${encodeURIComponent(fullCallbackUrl)}`);
 
             return reply.redirect(authUrl);
@@ -187,28 +220,24 @@ function registerOAuthRoutes(server: FastifyInstance, config: AuthConfig) {
             }
 
             // Validate state (CSRF protection)
-            const cookieHeader = request.headers.cookie ?? '';
-            const stateCookie = cookieHeader
-                .split(';')
-                .map((c) => c.trim())
-                .find((c) => c.startsWith('moria_oauth_state='));
-            const savedState = stateCookie?.split('=')[1];
+            const savedState = (request.cookies as Record<string, string | undefined>)['moria_oauth_state'];
 
             if (!savedState || savedState !== query.state) {
                 request.log.warn(`OAuth ${provider.name}: state mismatch`);
                 return reply.redirect(failureUrl);
             }
 
-            // Clear state cookie
-            reply.header('Set-Cookie',
-                'moria_oauth_state=; HttpOnly; Path=/; Max-Age=0'
-            );
+            // Clear state cookie (match same flags used when setting)
+            reply.clearCookie('moria_oauth_state', {
+                httpOnly: true,
+                path: '/',
+                sameSite: 'strict',
+                secure: config.secureCookies ?? process.env.NODE_ENV === 'production',
+            });
 
             try {
                 // Build full callback URL
-                const protocol = request.protocol ?? 'http';
-                const host = request.hostname;
-                const fullCallbackUrl = `${protocol}://${host}${callbackPath}`;
+                const fullCallbackUrl = buildCallbackUrl(config, request, callbackPath);
 
                 // Exchange code for access token
                 const accessToken = await provider.exchangeCode(query.code, fullCallbackUrl);
@@ -286,15 +315,40 @@ async function performAuth(request: FastifyRequest, reply: FastifyReply, options
  * });
  * ```
  */
-export function requireAuth(arg1?: any, arg2?: any): any {
-    // If called with (request, reply), it's a direct call
-    if (arg1 && typeof arg1 === 'object' && 'raw' in arg1) {
-        return performAuth(arg1, arg2);
+/**
+ * Auth guard options.
+ */
+export interface RequireAuthOptions {
+    /** Required role for the authenticated user (if any) */
+    role?: string;
+}
+
+/**
+ * Route-level authentication guard.
+ * Use as a Fastify preHandler hook.
+ *
+ * Supports both direct and factory calls:
+ * - `preHandler: [requireAuth]`
+ * - `preHandler: [requireAuth({ role: 'admin' })]`
+ *
+ * @example
+ * ```ts
+ * server.get('/protected', { preHandler: [requireAuth] }, async (req) => {
+ *   return { user: req.user };
+ * });
+ * ```
+ */
+export function requireAuth(request: FastifyRequest, reply: FastifyReply): Promise<void>;
+export function requireAuth(options?: RequireAuthOptions): (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+export function requireAuth(arg1?: FastifyRequest | RequireAuthOptions, arg2?: FastifyReply): any {
+    // If the first argument is a FastifyRequest (duck-type: has method, url, headers), it's a direct call.
+    if (arg1 && typeof arg1 === 'object' && 'method' in arg1 && 'url' in arg1 && 'headers' in arg1) {
+        return performAuth(arg1 as FastifyRequest, arg2 as FastifyReply);
     }
 
     // Otherwise, it's a factory call: requireAuth(options)
     return async (request: FastifyRequest, reply: FastifyReply) => {
-        return performAuth(request, reply, arg1);
+        return performAuth(request, reply, arg1 as RequireAuthOptions | undefined);
     };
 }
 

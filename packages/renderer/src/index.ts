@@ -7,6 +7,66 @@
  */
 
 /**
+ * HTML-escape a string for safe interpolation into an HTML context.
+ */
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * Serialize a value into a JS literal that is safe to inline inside a
+ * `<script>` element. Breaks out of the script context via `</script>`,
+ * `<!--`, or `-->` and escapes U+2028/U+2029 which can terminate the script.
+ */
+function jsonForScript(value: unknown): string {
+    return JSON.stringify(value)
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/&/g, '\\u0026')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
+}
+
+// Number of SSR renders currently in flight on the shared `mithril` singleton.
+// Mirrors of the original functions so we can restore them exactly once.
+let ssrRenderCount = 0;
+let ssrOriginalRequest: unknown;
+let ssrOriginalRedraw: unknown;
+
+/**
+ * Enter SSR mode on the shared mithril singleton. Only patches m.request /
+ * m.redraw on the first concurrent render and records the originals.
+ */
+function beginSsr(m: any): void {
+    if (ssrRenderCount === 0) {
+        ssrOriginalRequest = m.request;
+        ssrOriginalRedraw = m.redraw;
+        m.request = () => Promise.resolve();
+        m.redraw = () => { };
+    }
+    ssrRenderCount++;
+}
+
+/**
+ * Leave SSR mode. Restores the original m.request / m.redraw once the last
+ * concurrent render completes.
+ */
+function endSsr(m: any): void {
+    ssrRenderCount--;
+    if (ssrRenderCount === 0) {
+        m.request = ssrOriginalRequest;
+        m.redraw = ssrOriginalRedraw;
+        ssrOriginalRequest = undefined;
+        ssrOriginalRedraw = undefined;
+    }
+}
+
+/**
  * Options for rendering a page.
  */
 export interface RenderOptions {
@@ -54,45 +114,40 @@ export async function renderToString(
     component: any,
     options: RenderOptions = {}
 ): Promise<string> {
-    // mithril-node-render has no type declarations — use string import
+    // mithril-node-render has no type declarations — use string import to hide from static analysis
     const renderModule = await (Function('return import("mithril-node-render")')() as Promise<{ default: (vnode: unknown) => Promise<string> }>);
     const mModule = await (Function('return import("mithril")')() as Promise<{ default: (tag: any, attrs?: any) => any }>);
 
     const render = renderModule.default;
-    const m = mModule.default as any;
-
-    // Patch m.request and m.redraw for SSR safety
-    // These functions use browser globals (XMLHttpRequest, FormData) or schedulers
-    // that are not available on the server.
-    const originalRequest = m.request;
-    const originalRedraw = m.redraw;
-
-    m.request = () => Promise.resolve();
-    m.redraw = () => { };
+    const m: any = mModule.default;
 
     let componentHtml: string;
     try {
+        // SSR-safe patching of m.request/m.redraw. These use browser globals
+        // (XMLHttpRequest, FormData) or scheduling that are unavailable on the
+        // server. Because `m` is a shared singleton and renders run concurrently,
+        // patch only when the first render starts and restore only when the last
+        // one finishes, so interleaved renders cannot clobber each other's callbacks.
+        beginSsr(m);
         componentHtml = await render(m(component, { serverData: options.initialData ?? {} }));
     } finally {
-        // Restore original functions
-        m.request = originalRequest;
-        m.redraw = originalRedraw;
+        endSsr(m);
     }
 
     const metaTags = options.meta
         ? Object.entries(options.meta)
-            .map(([name, content]) => `<meta name="${name}" content="${content}">`)
+            .map(([name, content]) => `<meta name="${escapeHtml(name)}" content="${escapeHtml(String(content))}">`)
             .join('\n    ')
         : '';
 
     const cssLinkTags = options.cssLinks
         ? options.cssLinks
-            .map((href) => `<link rel="stylesheet" href="${href}">`)
+            .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`)
             .join('\n    ')
         : '';
 
     const hydrationScript = options.initialData
-        ? `<script>window.__MORIA_DATA__ = ${JSON.stringify(options.initialData)};</script>`
+        ? `<script>window.__MORIA_DATA__ = ${jsonForScript(options.initialData)};</script>`
         : '';
 
     // Dev vs production script tags
@@ -124,13 +179,13 @@ export async function renderToString(
     }
 
     return `<!DOCTYPE html>
-<html lang="${options.lang ?? 'en'}">
+<html lang="${escapeHtml(options.lang ?? 'en')}">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     ${metaTags}
     ${cssLinkTags}
-    <title>${options.title ?? 'MoriaJS App'}</title>
+    <title>${escapeHtml(options.title ?? 'MoriaJS App')}</title>
   </head>
   <body>
     <div id="app">${componentHtml}</div>

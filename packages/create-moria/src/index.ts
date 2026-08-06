@@ -18,10 +18,29 @@ import pc from 'picocolors';
 import prompts from 'prompts';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 
 const pkgJsonPath = new URL('../package.json', import.meta.url);
 const pkgJsonStr = readFileSync(pkgJsonPath, 'utf8');
 const { version: VERSION } = JSON.parse(pkgJsonStr);
+
+/**
+ * Resolve the published version of a `@moriajs/*` package to scaffold as a
+ * dependency. Prefers the version actually installed in the environment so the
+ * generated project doesn't drift from the framework release in use, falling
+ * back to the create-moria version otherwise.
+ */
+function frameworkVersion(pkg: string): string {
+    const require = createRequire(import.meta.url);
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const pkgJson = require(`${pkg}/package.json`) as { version?: string };
+        if (pkgJson.version) return pkgJson.version;
+    } catch {
+        // Not resolvable from this location — fall through to the fallback.
+    }
+    return VERSION;
+}
 
 export const cli = cac('create-moria');
 
@@ -755,14 +774,14 @@ cli
 
         // ─── package.json ───────────────────────────────────
         const deps: Record<string, string> = {
-            '@moriajs/core': '^0.4.37',
-            '@moriajs/db': '^0.4.37',
-            '@moriajs/auth': '^0.4.37',
+            '@moriajs/core': `^${frameworkVersion('@moriajs/core')}`,
+            '@moriajs/db': `^${frameworkVersion('@moriajs/db')}`,
+            '@moriajs/auth': `^${frameworkVersion('@moriajs/auth')}`,
         };
 
         if (template === 'default') {
-            deps['@moriajs/renderer'] = '^0.4.37';
-            deps['@moriajs/ui'] = '^0.4.37';
+            deps['@moriajs/renderer'] = `^${frameworkVersion('@moriajs/renderer')}`;
+            deps['@moriajs/ui'] = `^${frameworkVersion('@moriajs/ui')}`;
             deps['mithril'] = '^2.2.0';
             deps['@hotwired/turbo'] = '^8.0.0';
         }

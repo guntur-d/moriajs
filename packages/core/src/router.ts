@@ -53,6 +53,21 @@ export interface RouteEntry {
 }
 
 /**
+ * Extract HTTP method handlers from a loaded route module.
+ * Supports both uppercase (`GET`) and lowercase (`get`) named exports.
+ */
+function extractMethods(mod: Record<string, unknown>): Partial<Record<Lowercase<HttpMethod>, RouteHandler>> {
+    const methods: Partial<Record<Lowercase<HttpMethod>, RouteHandler>> = {};
+    for (const method of HTTP_METHODS) {
+        const handler = mod[method] ?? mod[method.toLowerCase()];
+        if (typeof handler === 'function') {
+            methods[method.toLowerCase() as Lowercase<HttpMethod>] = handler as RouteHandler;
+        }
+    }
+    return methods;
+}
+
+/**
  * Options for route registration.
  */
 export interface RegisterRoutesOptions {
@@ -186,13 +201,7 @@ export async function scanRoutes(
             }
 
             // Also check for named HTTP method exports
-            const methods: Partial<Record<Lowercase<HttpMethod>, RouteHandler>> = {};
-            for (const method of HTTP_METHODS) {
-                const handler = mod[method] ?? mod[method.toLowerCase()];
-                if (typeof handler === 'function') {
-                    methods[method.toLowerCase() as Lowercase<HttpMethod>] = handler as RouteHandler;
-                }
-            }
+            const methods = extractMethods(mod);
             if (Object.keys(methods).length > 0) {
                 routes.push({ filePath: file, urlPath, type: 'page', methods });
                 continue;
@@ -201,13 +210,7 @@ export async function scanRoutes(
             console.warn(`[moria] Page route has no component or handlers: ${file}`);
         } else {
             // ─── API route: expects named HTTP method exports ────────
-            const methods: Partial<Record<Lowercase<HttpMethod>, RouteHandler>> = {};
-            for (const method of HTTP_METHODS) {
-                const handler = mod[method] ?? mod[method.toLowerCase()];
-                if (typeof handler === 'function') {
-                    methods[method.toLowerCase() as Lowercase<HttpMethod>] = handler as RouteHandler;
-                }
-            }
+            const methods = extractMethods(mod);
 
             // Also support default export as GET handler
             if (typeof mod.default === 'function' && !methods.get) {
@@ -243,6 +246,11 @@ export async function registerRoutes(
     const routes = await scanRoutes(routesDir, mode, vite);
     const config = options.config ?? {};
 
+    // Resolve renderer + vite-scripts at registration time (not per-request)
+    // Dynamic imports avoid circular dependency at compile time.
+    const { renderToString } = await import('@moriajs/renderer');
+    const { getHtmlScripts } = await import('./vite.js');
+
     // ─── Scan file-based middleware ──────────────────────────
     const middlewareEntries = await scanMiddleware(routesDir);
     if (middlewareEntries.length > 0) {
@@ -277,12 +285,10 @@ export async function registerRoutes(
                     };
                     if (getServerData) {
                         const serverData = await getServerData(request);
-                        Object.assign(initialData, serverData);
+                        // Prevent user data from overwriting internal routing metadata
+                        const { _moria_page: _, ...safeServerData } = serverData as Record<string, unknown>;
+                        Object.assign(initialData, safeServerData);
                     }
-
-                    // Dynamic import of renderer (avoids circular deps)
-                    const { renderToString } = await import('@moriajs/renderer');
-                    const { getHtmlScripts } = await import('./vite.js');
 
                     const scriptTags = await getHtmlScripts(mode, config);
 
@@ -316,8 +322,5 @@ export async function registerRoutes(
     }
 
     server.log.info(`Registered ${routes.length} file-based route(s)`);
-    for (const route of routes) {
-        console.log(`[moria] Registered route: ${route.urlPath}`);
-    }
     return routes;
 }

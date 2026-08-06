@@ -11,7 +11,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 
-const VERSION = '0.4.14';
+const pkgJsonPath = new URL('../package.json', import.meta.url);
+const pkgJsonStr = fs.readFileSync(pkgJsonPath, 'utf8');
+const { version: VERSION } = JSON.parse(pkgJsonStr);
 
 export const cli = cac('moria');
 
