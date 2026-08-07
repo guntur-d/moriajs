@@ -479,6 +479,35 @@ moria generate     # Generate routes, components, models
 - [SSR Guidelines](./packages/renderer/SSR_GUIDELINES.md) — Isomorphic component best practices
 - [UI Components](./packages/ui/src/index.ts) — Toaster, Modal
 
+## Changelog
+
+### v0.4.40 (2026)
+
+**Security**
+- OAuth `appUrl` config option added to prevent Host-header poisoning of OAuth `redirect_uri` ([auth](#authentication))
+- Kysely filter keys now validated against strict regex to prevent SQL injection via column names ([db](#database))
+- Renderer XSS hardening: all HTML interpolation escaped (`escapeHtml`), script-tag data encoded (`jsonForScript`)
+
+**Correctness & Reliability**
+- Auto-registration of `@moriajs/db` / `@moriajs/auth` now throws on missing packages (was silent warning)
+- `insertOne` race condition fallback: returns `{...data, id: insertedId}` when post-insert re-fetch returns null
+- SSR imports (`renderToString`, `getHtmlScripts`) resolved once at registration time, not per-request
+- Concurrent SSR safety: refcount-based `m.request`/`m.redraw` patching on shared Mithril singleton
+
+**Type Safety**
+- `requireAuth` duck-type hardened: checks `method`+`url`+`headers` instead of fragile `'raw' in obj`
+- Plugin `server` parameter typed as `FastifyInstance` (was `any`)
+- Cookie parsing uses `@fastify/cookie` decorators (`request.cookies`, `reply.setCookie`/`clearCookie`)
+
+**Code Quality**
+- Shared helpers extracted: `extractMethods`, `mapIdFilter`/`mapIdResult`, `dismissConfirm`, `buildCallbackUrl`
+- `create-moria` resolves actual installed `@moriajs/*` versions (no more hardcoded)
+- CLI reads version from its own `package.json`
+
+**Developer Experience**
+- `@fastify/cookie` used for all cookie operations — proper encoding, flag matching, SameSite handling
+- OAuth state cookies cleared with matching flags (fixes silent clear failures)
+
 ## Roadmap
 
 - [x] Monorepo scaffold (pnpm + Turborepo)

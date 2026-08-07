@@ -76,3 +76,8 @@ m(Modal, {
   m('p', 'This is a declarative modal.'),
 ]);
 ```
+
+## Internals (v0.4.40+)
+
+- `ConfirmationRegistry` now uses a shared `dismissConfirm(id, result)` helper internally, deduplicating confirm/cancel/close handler logic.
+- All inline styles are kept in-component (no external CSS dependency) — components are CSS-framework agnostic.

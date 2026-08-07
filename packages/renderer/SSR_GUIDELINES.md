@@ -81,6 +81,8 @@ MoriaJS automatically patches `m.request` and `m.redraw` during SSR to prevent s
 - `m.request` returns an immediately resolving promise on the server.
 - `m.redraw` becomes a no-op on the server.
 
+**Concurrent SSR (v0.4.40+)**: The renderer uses a reference-counted patch on the shared Mithril singleton. Multiple concurrent `renderToString` calls are isolated — each patches `m.request`/`m.redraw` on entry and restores on exit, with a refcount ensuring the originals are restored only after the last render completes. This prevents race conditions where interleaved renders could clobber each other's patches.
+
 If you need data for SSR, use the `getServerData` pattern (if available in your route) or hydrate data via `initialData` in `renderToString`.
 
 ## Summary Checklist
