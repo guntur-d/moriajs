@@ -7,7 +7,9 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { ViteDevServer } from 'vite';
+import path from 'node:path';
 import { type MoriaConfig } from './config.js';
+import { CLIENT_OUTDIR, buildScriptTags } from './assets.js';
 
 /**
  * Attach Vite dev server to Fastify in middleware mode.
@@ -58,10 +60,9 @@ export async function serveProductionAssets(
     server: FastifyInstance,
     config: Partial<MoriaConfig> = {}
 ): Promise<void> {
-    const path = await import('node:path');
     const fastifyStatic = (await import('@fastify/static')).default;
 
-    const distDir = path.resolve(config.rootDir ?? process.cwd(), 'dist', 'client');
+    const distDir = path.resolve(config.rootDir ?? process.cwd(), CLIENT_OUTDIR);
 
     await server.register(fastifyStatic, {
         root: distDir,
@@ -73,39 +74,10 @@ export async function serveProductionAssets(
 }
 
 /**
- * Generate the HTML shell for a page, with appropriate script tags
- * depending on dev vs production mode.
+ * Generate the HTML shell script tags for a page.
+ * Canonical implementation lives in `./assets.js` — this stays
+ * as the public entry point so existing imports keep working.
  */
 export async function getHtmlScripts(mode: 'development' | 'production', config: Partial<MoriaConfig> = {}): Promise<string> {
-    const clientEntry = config.vite?.clientEntry ?? '/src/entry-client.ts';
-
-    if (mode === 'development') {
-        return [
-            `<script type="module" src="/@vite/client"></script>`,
-            `<script type="module" src="${clientEntry}"></script>`,
-        ].join('\n    ');
-    }
-
-    // Production: reference the built bundle via manifest
-    const rootDir = config.rootDir ?? process.cwd();
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const fullManifestPath = path.resolve(rootDir, 'dist/client/.vite/manifest.json');
-
-    if (fs.existsSync(fullManifestPath)) {
-        try {
-            const manifest = JSON.parse(fs.readFileSync(fullManifestPath, 'utf-8'));
-            // Vite manifest keys are relative to root, usually 'src/entry-client.ts' or similar
-            // We need to match it against our clientEntry (dropping leading slash)
-            const entryKey = clientEntry.startsWith('/') ? clientEntry.slice(1) : clientEntry;
-            const entry = manifest[entryKey];
-
-            if (entry && entry.file) {
-                return `<script type="module" src="/assets/${entry.file}"></script>`;
-            }
-        } catch {
-            // Manifest parse failed, fall through to default
-        }
-    }
-    return `<script type="module" src="/assets/entry-client.js"></script>`;
+    return buildScriptTags(mode, config);
 }

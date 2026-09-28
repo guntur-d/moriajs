@@ -5,7 +5,7 @@
  * Uses Node.js built-in fetch — zero additional dependencies.
  */
 
-import type { AuthUser } from '../index.js';
+import type { AuthUser } from '../plugin.js';
 import type { OAuthProviderConfig, OAuthProvider } from './types.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';

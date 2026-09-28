@@ -5,7 +5,7 @@
  * Uses Node.js built-in fetch — zero additional dependencies.
  */
 
-import type { AuthUser } from '../index.js';
+import type { AuthUser } from '../plugin.js';
 import type { OAuthProviderConfig, OAuthProvider } from './types.js';
 
 const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize';

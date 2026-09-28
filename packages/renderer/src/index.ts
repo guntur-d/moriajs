@@ -6,10 +6,13 @@
  * and client-side hydration.
  */
 
+import m from 'mithril';
+import render from 'mithril-node-render';
+
 /**
  * HTML-escape a string for safe interpolation into an HTML context.
  */
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
     return value
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -23,13 +26,18 @@ function escapeHtml(value: string): string {
  * `<script>` element. Breaks out of the script context via `</script>`,
  * `<!--`, or `-->` and escapes U+2028/U+2029 which can terminate the script.
  */
-function jsonForScript(value: unknown): string {
+export function jsonForScript(value: unknown): string {
     return JSON.stringify(value)
         .replace(/</g, '\\u003c')
         .replace(/>/g, '\\u003e')
         .replace(/&/g, '\\u0026')
         .replace(/\u2028/g, '\\u2028')
         .replace(/\u2029/g, '\\u2029');
+}
+
+interface SsrPatchable {
+    request: unknown;
+    redraw: unknown;
 }
 
 // Number of SSR renders currently in flight on the shared `mithril` singleton.
@@ -42,12 +50,12 @@ let ssrOriginalRedraw: unknown;
  * Enter SSR mode on the shared mithril singleton. Only patches m.request /
  * m.redraw on the first concurrent render and records the originals.
  */
-function beginSsr(m: any): void {
+function beginSsr(target: SsrPatchable): void {
     if (ssrRenderCount === 0) {
-        ssrOriginalRequest = m.request;
-        ssrOriginalRedraw = m.redraw;
-        m.request = () => Promise.resolve();
-        m.redraw = () => { };
+        ssrOriginalRequest = target.request;
+        ssrOriginalRedraw = target.redraw;
+        target.request = () => Promise.resolve();
+        target.redraw = () => { };
     }
     ssrRenderCount++;
 }
@@ -56,11 +64,11 @@ function beginSsr(m: any): void {
  * Leave SSR mode. Restores the original m.request / m.redraw once the last
  * concurrent render completes.
  */
-function endSsr(m: any): void {
+function endSsr(target: SsrPatchable): void {
     ssrRenderCount--;
     if (ssrRenderCount === 0) {
-        m.request = ssrOriginalRequest;
-        m.redraw = ssrOriginalRedraw;
+        target.request = ssrOriginalRequest;
+        target.redraw = ssrOriginalRedraw;
         ssrOriginalRequest = undefined;
         ssrOriginalRedraw = undefined;
     }
@@ -84,12 +92,55 @@ export interface RenderOptions {
     clientEntry?: string;
     /** CSS stylesheet links to inject in the head */
     cssLinks?: string[];
-    /** Pre-generated script tags to inject before </body> */
+    /** Pre-generated script tags to inject before </body> (canonical: from @moriajs/core getHtmlScripts) */
     scriptTags?: string;
     /** Parsed Vite manifest for resolving hashed production assets */
-    manifest?: Record<string, any>;
+    manifest?: Record<string, { file: string }>;
     /** Base URL path for assets (default: '/assets/') */
     basePath?: string;
+}
+
+export type MithrilComponent = m.ComponentTypes;
+
+/**
+ * Dynamic hyperscript for route components arriving as unknown module shapes.
+ * Mithril's typed overloads can't express "user-supplied component + ad-hoc
+ * serverData attrs", so the dynamic boundary is isolated here in one helper
+ * instead of scattering `any` through the renderer.
+ */
+function dynamicHyperscript(comp: unknown, attrs?: Record<string, unknown>): m.Vnode {
+    const h = m as unknown as (c: unknown, a?: unknown) => m.Vnode;
+    return h(comp, attrs);
+}
+
+/**
+ * Build fallback script tags for direct renderToString callers.
+ * Canonical server-side resolution lives in @moriajs/core `./assets.js`
+ * (buildScriptTags); this mirrors its semantics for leaf-package callers
+ * that don't depend on core. Prefer passing pre-generated `scriptTags`.
+ */
+export function fallbackScriptTags(options: Pick<RenderOptions, 'mode' | 'clientEntry' | 'manifest' | 'basePath'>): string {
+    const mode = options.mode ?? 'production';
+    const clientEntry = options.clientEntry ?? '/src/entry-client.ts';
+    const basePath = options.basePath ?? '/assets/';
+    const cleanBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
+
+    if (mode === 'development') {
+        return [
+            `<script type="module" src="/@vite/client"></script>`,
+            `<script type="module" src="${clientEntry}"></script>`,
+        ].join('\n    ');
+    }
+
+    // Remove leading slash for manifest lookup if present
+    const manifestKey = clientEntry.startsWith('/') ? clientEntry.slice(1) : clientEntry;
+    let assetFile = 'entry-client.js'; // Fallback
+
+    if (options.manifest?.[manifestKey]?.file) {
+        assetFile = options.manifest[manifestKey].file;
+    }
+
+    return `<script type="module" src="${cleanBasePath}${assetFile}"></script>`;
 }
 
 /**
@@ -110,17 +161,9 @@ export interface RenderOptions {
  * ```
  */
 export async function renderToString(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    component: any,
+    component: MithrilComponent,
     options: RenderOptions = {}
 ): Promise<string> {
-    // mithril-node-render has no type declarations — use string import to hide from static analysis
-    const renderModule = await (Function('return import("mithril-node-render")')() as Promise<{ default: (vnode: unknown) => Promise<string> }>);
-    const mModule = await (Function('return import("mithril")')() as Promise<{ default: (tag: any, attrs?: any) => any }>);
-
-    const render = renderModule.default;
-    const m: any = mModule.default;
-
     let componentHtml: string;
     try {
         // SSR-safe patching of m.request/m.redraw. These use browser globals
@@ -128,10 +171,10 @@ export async function renderToString(
         // server. Because `m` is a shared singleton and renders run concurrently,
         // patch only when the first render starts and restore only when the last
         // one finishes, so interleaved renders cannot clobber each other's callbacks.
-        beginSsr(m);
-        componentHtml = await render(m(component, { serverData: options.initialData ?? {} }));
+        beginSsr(m as unknown as SsrPatchable);
+        componentHtml = await render(dynamicHyperscript(component, { serverData: options.initialData ?? {} }));
     } finally {
-        endSsr(m);
+        endSsr(m as unknown as SsrPatchable);
     }
 
     const metaTags = options.meta
@@ -150,33 +193,8 @@ export async function renderToString(
         ? `<script>window.__MORIA_DATA__ = ${jsonForScript(options.initialData)};</script>`
         : '';
 
-    // Dev vs production script tags
-    let scriptTags: string;
-    if (options.scriptTags) {
-        scriptTags = options.scriptTags;
-    } else {
-        const mode = options.mode ?? 'production';
-        const clientEntry = options.clientEntry ?? '/src/entry-client.ts';
-        const basePath = options.basePath ?? '/assets/';
-        const cleanBasePath = basePath.endsWith('/') ? basePath : basePath + '/';
-
-        if (mode === 'development') {
-            scriptTags = [
-                `<script type="module" src="/@vite/client"></script>`,
-                `<script type="module" src="${clientEntry}"></script>`,
-            ].join('\n    ');
-        } else {
-            // Remove leading slash for manifest lookup if present
-            const manifestKey = clientEntry.startsWith('/') ? clientEntry.slice(1) : clientEntry;
-            let assetFile = 'entry-client.js'; // Fallback
-
-            if (options.manifest && options.manifest[manifestKey]) {
-                assetFile = options.manifest[manifestKey].file;
-            }
-
-            scriptTags = `<script type="module" src="${cleanBasePath}${assetFile}"></script>`;
-        }
-    }
+    // Dev vs production script tags (prefer pre-generated canonical tags)
+    const scriptTags = options.scriptTags ?? fallbackScriptTags(options);
 
     return `<!DOCTYPE html>
 <html lang="${escapeHtml(options.lang ?? 'en')}">
@@ -208,16 +226,13 @@ export async function renderToString(
  * ```
  */
 export async function hydrate(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    component: any,
+    component: MithrilComponent,
     container: Element,
-    data?: any
+    data?: Record<string, unknown>
 ): Promise<void> {
-    const mModule = await import('mithril');
-    const m = mModule.default;
     // Wrap to pass data as attributes
     m.mount(container, {
-        view: () => m(component, { serverData: data ?? {} })
+        view: () => dynamicHyperscript(component, { serverData: data ?? {} })
     });
 }
 
@@ -226,19 +241,44 @@ export async function hydrate(
  */
 export function getHydrationData<T = Record<string, unknown>>(): T | undefined {
     if (typeof window !== 'undefined') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (window as any).__MORIA_DATA__ as T | undefined;
+        return (window as unknown as { __MORIA_DATA__: T }).__MORIA_DATA__ as T | undefined;
     }
     return undefined;
+}
+
+/**
+ * Normalize a glob key for page matching (strip leading ./ or /).
+ */
+export function normalizePageKey(key: string): string {
+    return key.replace(/^\.\//, '').replace(/^\//, '');
+}
+
+/**
+ * Find the glob key for a hydrated page path.
+ * Exact normalized match wins; otherwise the longest suffix match wins
+ * (most specific first, preventing `index` from hijacking `admin/index`).
+ */
+export function matchPageKey(pages: Record<string, unknown>, pagePath: string): string | undefined {
+    const normalizedPage = normalizePageKey(pagePath);
+    const keys = Object.keys(pages);
+    const exact = keys.find((key) => normalizePageKey(key) === normalizedPage);
+    if (exact) return exact;
+    return keys
+        .sort((a, b) => b.length - a.length)
+        .find((key) => {
+            const normalized = normalizePageKey(key);
+            return normalized === normalizedPage || normalized.endsWith(`/${normalizedPage}`);
+        });
 }
 
 /**
  * Automatically boot the MoriaJS application on the client.
  * Discovers the correct component based on hydration data and performs hydration.
  *
- * @param pages A glob import object from `import.meta.glob`.
+ * @param pages A glob import object from `import.meta.glob`
+ * (values are lazy loaders resolving to modules with a default export).
  */
-export async function bootstrap(pages: Record<string, () => Promise<any>>): Promise<void> {
+export async function bootstrap(pages: Record<string, () => Promise<unknown>>): Promise<void> {
     const root = document.getElementById('app');
     if (!root) {
         console.error('[MoriaJS] #app root element not found');
@@ -253,19 +293,12 @@ export async function bootstrap(pages: Record<string, () => Promise<any>>): Prom
         return;
     }
 
-    // Try to find the component in the glob map
-    // The path usually starts with ./routes/ or similar in the app space
-    // We try to match the tail of the key with the pagePath.
-    // We sort the keys by length to ensure the shortest (most direct) match is evaluated first,
-    // preventing hydration hijacking (e.g. distinguishing index.js from admin/index.js if pagePath is index.js).
-    const matchingKey = Object.keys(pages)
-        .sort((a, b) => a.length - b.length)
-        .find(key => key.endsWith(pagePath));
+    const matchingKey = matchPageKey(pages, pagePath);
 
     if (matchingKey) {
         try {
-            const mod = await pages[matchingKey]();
-            const component = mod.default;
+            const mod = (await pages[matchingKey]()) as { default?: unknown };
+            const component = mod.default as MithrilComponent | undefined;
 
             if (!component) {
                 console.error(`[MoriaJS] Component for ${pagePath} has no default export`);

@@ -1,6 +1,6 @@
 {
   "name": "@moriajs/ui",
-  "version": "0.4.40",
+  "version": "0.4.41",
   "type": "module",
   "description": "MoriaJS UI — Toaster, modals, and component primitives for Mithril.js",
   "main": "./dist/index.js",
@@ -15,7 +15,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist .turbo"
+    "clean": "rimraf dist .turbo",
+    "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

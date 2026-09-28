@@ -8,8 +8,8 @@
 import { cac } from 'cac';
 import pc from 'picocolors';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
+import { loadConfig } from './config.js';
 
 const pkgJsonPath = new URL('../package.json', import.meta.url);
 const pkgJsonStr = fs.readFileSync(pkgJsonPath, 'utf8');
@@ -17,26 +17,48 @@ const { version: VERSION } = JSON.parse(pkgJsonStr);
 
 export const cli = cac('moria');
 
-/**
- * Attempt to load moria.config.ts from the current working directory.
- */
-async function loadConfig(): Promise<Record<string, unknown>> {
-    const cwd = process.cwd();
-    const configFiles = ['moria.config.ts', 'moria.config.js', 'moria.config.mjs'];
+interface ServerCliOptions {
+    port?: string | number;
+    host?: string;
+}
 
-    for (const file of configFiles) {
-        const configPath = path.resolve(cwd, file);
-        if (fs.existsSync(configPath)) {
-            try {
-                const mod = await import(pathToFileURL(configPath).href);
-                return mod.default ?? mod;
-            } catch {
-                // Config load failed, continue
-            }
-        }
+function banner(action: string): void {
+    console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
+    console.log(pc.green(action));
+    console.log();
+}
+
+/**
+ * Single boot flow for dev + start (no duplication).
+ */
+async function bootServer(mode: 'development' | 'production', options: ServerCliOptions): Promise<void> {
+    const { createApp } = await import('@moriajs/core');
+    const { config: userConfig, configFile } = await loadConfig();
+    if (configFile) {
+        console.log(pc.dim(`  → Config: ${configFile}`));
     }
 
-    return {};
+    const app = await createApp({
+        config: {
+            ...userConfig,
+            mode,
+            rootDir: process.cwd(),
+            server: {
+                ...userConfig.server,
+                port: options.port !== undefined ? Number(options.port) : userConfig.server?.port,
+                ...(options.host ? { host: options.host } : {}),
+            },
+        },
+    });
+
+    const address = await app.listen();
+    console.log();
+    console.log(pc.green('  ✓ ') + pc.bold(mode === 'development' ? 'Dev server ready' : 'Production server running'));
+    console.log(pc.dim(`    → ${address}`));
+    if (mode === 'development') {
+        console.log(pc.dim('    → HMR enabled via Vite'));
+    }
+    console.log();
 }
 
 // ─── dev ────────────────────────────────────────────
@@ -45,9 +67,8 @@ cli
     .option('--port <port>', 'Port to listen on', { default: 3000 })
     .option('--host <host>', 'Host to bind to', { default: 'localhost' })
     .option('--force', 'Clear Vite cache before starting')
-    .action(async (options) => {
-        console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
-        console.log(pc.green('Starting dev server...'));
+    .action(async (options: ServerCliOptions & { force?: boolean }) => {
+        banner('Starting dev server...');
 
         if (options.force) {
             const viteCache = path.resolve(process.cwd(), 'node_modules', '.vite');
@@ -60,28 +81,7 @@ cli
         console.log();
 
         try {
-            const { createApp } = await import('@moriajs/core');
-            const userConfig = await loadConfig();
-
-            const app = await createApp({
-                config: {
-                    ...userConfig,
-                    mode: 'development',
-                    rootDir: process.cwd(),
-                    server: {
-                        ...(userConfig.server as Record<string, unknown> ?? {}),
-                        port: Number(options.port),
-                        host: options.host,
-                    },
-                },
-            });
-
-            const address = await app.listen();
-            console.log();
-            console.log(pc.green('  ✓ ') + pc.bold('Dev server ready'));
-            console.log(pc.dim(`    → ${address}`));
-            console.log(pc.dim('    → HMR enabled via Vite'));
-            console.log();
+            await bootServer('development', options);
         } catch (err) {
             console.error(pc.red('Failed to start dev server:'), err);
             process.exit(1);
@@ -92,26 +92,17 @@ cli
 cli
     .command('build', 'Build for production')
     .action(async () => {
-        console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
-        console.log(pc.green('Building for production...'));
-        console.log();
+        banner('Building for production...');
 
         try {
             const { build } = await import('vite');
-            const userConfig = await loadConfig();
+            const { resolveBuildInput, CLIENT_OUTDIR } = await import('@moriajs/core');
+            const { config: userConfig } = await loadConfig();
 
-            // Client build
+            // Client build (entry resolution is canonical in @moriajs/core)
             console.log(pc.dim('  → Building client bundle...'));
 
-            let clientEntry = (userConfig.vite as any)?.clientEntry ||
-                (fs.existsSync(path.resolve(process.cwd(), 'src/entry-client.ts'))
-                    ? 'src/entry-client.ts'
-                    : 'src/entry-client.js');
-
-            // Strip leading slash to prevent absolute path resolution issues on Windows
-            if (clientEntry.startsWith('/')) {
-                clientEntry = clientEntry.slice(1);
-            }
+            const input = resolveBuildInput(process.cwd(), userConfig.vite?.clientEntry);
 
             await build({
                 root: process.cwd(),
@@ -126,11 +117,11 @@ cli
                     exclude: ['@moriajs/renderer', '@moriajs/core'],
                 },
                 build: {
-                    outDir: 'dist/client',
+                    outDir: CLIENT_OUTDIR,
                     emptyOutDir: true,
                     manifest: true,
                     rollupOptions: {
-                        input: path.resolve(process.cwd(), clientEntry),
+                        input,
                     },
                 },
             });
@@ -148,30 +139,11 @@ cli
 cli
     .command('start', 'Start the production server')
     .option('--port <port>', 'Port to listen on', { default: 3000 })
-    .action(async (options) => {
-        console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
-        console.log(pc.green('Starting production server...'));
-        console.log();
+    .action(async (options: ServerCliOptions) => {
+        banner('Starting production server...');
 
         try {
-            const { createApp } = await import('@moriajs/core');
-            const userConfig = await loadConfig();
-
-            const app = await createApp({
-                config: {
-                    ...userConfig,
-                    mode: 'production',
-                    rootDir: process.cwd(),
-                    server: {
-                        ...(userConfig.server as Record<string, unknown> ?? {}),
-                        port: Number(options.port),
-                    },
-                },
-            });
-
-            const address = await app.listen();
-            console.log(pc.green('  ✓ ') + pc.bold('Production server running'));
-            console.log(pc.dim(`    → ${address}`));
+            await bootServer('production', options);
         } catch (err) {
             console.error(pc.red('Failed to start server:'), err);
             process.exit(1);
@@ -183,12 +155,11 @@ cli
     .command('generate <type> <name>', 'Generate a route, component, or model')
     .alias('g')
     .action(async (type: string, name: string) => {
-        console.log(pc.cyan('🏔️  MoriaJS') + pc.dim(` v${VERSION}`));
-        console.log(pc.green(`Generating ${type}: ${name}`));
-        console.log();
+        banner(`Generating ${type}: ${name}`);
 
-        // TODO: Phase 7 — Code generation
-        console.log(pc.yellow('⚠ Generators not yet implemented. Coming in Phase 7.'));
+        console.error(pc.red('Generators are not implemented yet (tracked for a future release).'));
+        console.log(pc.dim('  Scaffold new projects with `npx create-moria my-app` instead.'));
+        process.exit(1);
     });
 
 // ─── version & help ─────────────────────────────────

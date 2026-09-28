@@ -2,6 +2,20 @@
  * MoriaJS configuration type.
  * Used in `moria.config.ts` files in user projects.
  */
+
+import type { MoriaMiddleware } from './middleware.js';
+
+/** Database adapter names supported by MoriaJS (mirrors @moriajs/db DatabaseAdapterName). */
+export type MoriaDatabaseAdapter = 'pg' | 'sqlite' | 'mysql' | 'mongo';
+
+/** Helmet/security-header options (typed subset of @fastify/helmet options). */
+export interface MoriaHelmetOptions {
+    contentSecurityPolicy?: {
+        directives?: Record<string, string[]>;
+    };
+    [key: string]: unknown;
+}
+
 export interface MoriaConfig {
     /** Application mode */
     mode?: 'development' | 'production';
@@ -23,13 +37,13 @@ export interface MoriaConfig {
             credentials?: boolean;
         };
         /** Helmet (CSP and security headers) configuration */
-        helmet?: Record<string, any> | boolean;
+        helmet?: MoriaHelmetOptions | boolean;
     };
 
     /** Database configuration */
     database?: {
-        /** Database adapter: 'pg' | 'sqlite' | 'mysql' | 'mongo' */
-        adapter?: string;
+        /** Database adapter */
+        adapter?: MoriaDatabaseAdapter;
         /** Connection URL */
         url?: string;
         /** Path to SQLite file (for SQLite adapter) */
@@ -71,7 +85,7 @@ export interface MoriaConfig {
     };
 
     /** Global middleware (runs on every request) */
-    middleware?: Array<import('./middleware.js').MoriaMiddleware>;
+    middleware?: MoriaMiddleware[];
 }
 
 /**

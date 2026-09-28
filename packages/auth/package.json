@@ -1,6 +1,6 @@
 {
   "name": "@moriajs/auth",
-  "version": "0.4.40",
+  "version": "0.4.41",
   "type": "module",
   "description": "MoriaJS auth — JWT + httpOnly cookies, pluggable auth system",
   "main": "./dist/index.js",
@@ -15,7 +15,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist .turbo"
+    "clean": "rimraf dist .turbo",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@fastify/jwt": "^10.0.0",

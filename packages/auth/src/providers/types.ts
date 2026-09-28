@@ -4,7 +4,7 @@
  * Shared types for all OAuth providers in MoriaJS.
  */
 
-import type { AuthUser } from '../index.js';
+import type { AuthUser } from '../plugin.js';
 
 /**
  * Configuration for an OAuth provider.

@@ -35,6 +35,10 @@ coverage/
 tmp/
 .tmp/
 
+# Generated scaffold fixtures (recreated on demand via create-moria)
+packages/create-moria/test-app-*/
+test-app/
+
 implementationPlan.txt
 push.bat    
 checkpublishver.bat

@@ -17,17 +17,19 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { glob } from 'glob';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { ViteDevServer } from 'vite';
 
 /**
  * A MoriaJS middleware function.
  *
- * - Return nothing to continue to the next middleware / handler
- * - Call `reply.send()` or return a value to short-circuit
+ * Continue to the next middleware/handler by returning nothing.
+ * Short-circuit by calling `reply.send()` / `reply.redirect()` /
+ * throwing, or by returning a value (sent as the reply payload).
  */
 export type MoriaMiddleware = (
     request: FastifyRequest,
     reply: FastifyReply
-) => void | Promise<void>;
+) => unknown | Promise<unknown>;
 
 /**
  * A resolved middleware entry from a `_middleware.ts` file.
@@ -35,8 +37,6 @@ export type MoriaMiddleware = (
 export interface MiddlewareEntry {
     /** Directory path relative to routes dir (e.g., '', 'api', 'api/admin') */
     scope: string;
-    /** URL prefix this middleware applies to */
-    urlPrefix: string;
     /** Ordered array of middleware functions */
     handlers: MoriaMiddleware[];
 }
@@ -58,10 +58,37 @@ export function defineMiddleware(fn: MoriaMiddleware): MoriaMiddleware {
 }
 
 /**
+ * Load a middleware/route module consistently in dev and prod.
+ * Uses Vite SSR loading in development (handles TS + HMR transforms),
+ * plain ESM import otherwise. Single owner for module loading so
+ * routes and middleware never diverge.
+ */
+export async function loadRouteModule(
+    absolutePath: string,
+    vite?: ViteDevServer
+): Promise<Record<string, unknown>> {
+    if (vite) {
+        return (await vite.ssrLoadModule(absolutePath)) as Record<string, unknown>;
+    }
+    return (await import(pathToFileURL(absolutePath).href)) as Record<string, unknown>;
+}
+
+/**
+ * Normalize a middleware scope the same way route URLs are normalized:
+ * strip a leading `pages/` segment (page routes are root-relative).
+ */
+export function normalizeScope(scope: string): string {
+    if (scope === '') return '';
+    if (scope === 'pages') return '';
+    if (scope.startsWith('pages/')) return scope.slice('pages/'.length);
+    return scope;
+}
+
+/**
  * Scan a routes directory for `_middleware.ts` files and return
  * resolved middleware entries, sorted from root → deepest.
  */
-export async function scanMiddleware(routesDir: string): Promise<MiddlewareEntry[]> {
+export async function scanMiddleware(routesDir: string, vite?: ViteDevServer): Promise<MiddlewareEntry[]> {
     const pattern = '**/_middleware.{ts,js,mts,mjs}';
     const files = await glob(pattern, {
         cwd: routesDir,
@@ -74,29 +101,13 @@ export async function scanMiddleware(routesDir: string): Promise<MiddlewareEntry
         const dir = path.posix.dirname(file); // e.g., '.', 'api', 'pages/admin'
         const scope = dir === '.' ? '' : dir;
 
-        // Build URL prefix from scope
-        let urlPrefix = '/';
-        if (scope) {
-            // pages/ prefix is stripped in route URLs
-            let adjustedScope = scope;
-            if (adjustedScope.startsWith('pages')) {
-                adjustedScope = adjustedScope.slice(5); // remove 'pages'
-            }
-            if (adjustedScope && !adjustedScope.startsWith('/')) {
-                adjustedScope = '/' + adjustedScope;
-            }
-            urlPrefix = adjustedScope || '/';
-        }
-
         const absolutePath = path.resolve(routesDir, file);
-        const fileUrl = pathToFileURL(absolutePath).href;
 
         let mod: Record<string, unknown>;
         try {
-            mod = await import(fileUrl);
+            mod = await loadRouteModule(absolutePath, vite);
         } catch (err) {
-            console.warn(`[moria] Failed to load middleware: ${file}`, err);
-            continue;
+            throw new Error(`[moria] Failed to load middleware: ${file}: ${(err as Error).message}`);
         }
 
         // Resolve handlers from default export
@@ -110,11 +121,10 @@ export async function scanMiddleware(routesDir: string): Promise<MiddlewareEntry
         }
 
         if (handlers.length === 0) {
-            console.warn(`[moria] Middleware file has no handlers: ${file}`);
-            continue;
+            throw new Error(`[moria] Middleware file has no handlers: ${file}`);
         }
 
-        entries.push({ scope, urlPrefix, handlers });
+        entries.push({ scope, handlers });
     }
 
     // Sort by scope depth (root first, deeper scopes later)
@@ -128,8 +138,10 @@ export async function scanMiddleware(routesDir: string): Promise<MiddlewareEntry
 }
 
 /**
- * Get the ordered middleware chain for a given route URL path.
+ * Get the ordered middleware chain for a given route file.
  *
+ * Matches on normalized scope (pages-stripped) so `pages/_middleware.ts`
+ * applies to page routes the same way route URLs resolve.
  * Returns middleware from outermost (root) to innermost (closest parent).
  *
  * @param routeFilePath - File path relative to routes dir (e.g., 'api/hello.ts')
@@ -140,6 +152,7 @@ export function getMiddlewareChain(
     entries: MiddlewareEntry[]
 ): MoriaMiddleware[] {
     const routeDir = path.posix.dirname(routeFilePath);
+    const normalizedRouteDir = routeDir === '.' ? '' : normalizeScope(routeDir);
     const chain: MoriaMiddleware[] = [];
 
     for (const entry of entries) {
@@ -149,8 +162,19 @@ export function getMiddlewareChain(
             continue;
         }
 
-        // Check if the route file is within this middleware's scope
-        if (routeDir === entry.scope || routeDir.startsWith(entry.scope + '/')) {
+        const normalizedScope = normalizeScope(entry.scope);
+        // A normalized empty scope (e.g. `pages/`) applies to all page routes
+        if (normalizedScope === '') {
+            if (routeFilePath.startsWith('pages/')) {
+                chain.push(...entry.handlers);
+            }
+            continue;
+        }
+
+        // Check if the route is within this middleware's scope
+        // (normalized so `pages/admin` middleware matches `pages/admin/*` routes
+        // the same way page URLs resolve root-relative).
+        if (normalizedRouteDir === normalizedScope || normalizedRouteDir.startsWith(`${normalizedScope}/`)) {
             chain.push(...entry.handlers);
         }
     }

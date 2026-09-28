@@ -17,13 +17,12 @@
  *   export async function getServerData(request) { return { user: ... } }
  */
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply, HTTPMethods } from 'fastify';
 import { glob } from 'glob';
-import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import type { MoriaConfig } from './config.js';
-import { scanMiddleware, getMiddlewareChain, type MoriaMiddleware } from './middleware.js';
+import { scanMiddleware, getMiddlewareChain, loadRouteModule, type MoriaMiddleware } from './middleware.js';
+import { resolveClientEntry } from './assets.js';
 import type { ViteDevServer } from 'vite';
 
 /** Supported HTTP methods in route files. */
@@ -67,6 +66,41 @@ function extractMethods(mod: Record<string, unknown>): Partial<Record<Lowercase<
     return methods;
 }
 
+type ClassifiedModule =
+    | { kind: 'component'; component: unknown; getServerData?: GetServerData }
+    | { kind: 'handlers'; methods: Partial<Record<Lowercase<HttpMethod>, RouteHandler>> }
+    | { kind: 'empty' };
+
+/**
+ * Pure dispatcher: classify a loaded route module into one RouteKind.
+ * Single owner for the page/API discrimination rules (unit-testable).
+ */
+export function classifyModule(mod: Record<string, unknown>, isApi: boolean): ClassifiedModule {
+    const methods = extractMethods(mod);
+    const hasMethods = Object.keys(methods).length > 0;
+
+    if (isApi) {
+        if (typeof mod.default === 'function' && !methods.get) {
+            methods.get = mod.default as RouteHandler;
+        }
+        return hasMethods || methods.get ? { kind: 'handlers', methods } : { kind: 'empty' };
+    }
+
+    const component = mod.default;
+    if (component && typeof component === 'object' && 'view' in (component as Record<string, unknown>)) {
+        const getServerData =
+            typeof mod.getServerData === 'function' ? (mod.getServerData as GetServerData) : undefined;
+        return { kind: 'component', component, getServerData };
+    }
+    if (typeof component === 'function' && !hasMethods) {
+        return { kind: 'handlers', methods: { get: component as RouteHandler } };
+    }
+    if (hasMethods) {
+        return { kind: 'handlers', methods };
+    }
+    return { kind: 'empty' };
+}
+
 /**
  * Options for route registration.
  */
@@ -77,14 +111,16 @@ export interface RegisterRoutesOptions {
     config?: Partial<MoriaConfig>;
     /** Vite instance (for ssrLoadModule in development) */
     vite?: ViteDevServer;
+    /** Fail fast on broken route modules instead of skipping (default: true) */
+    strict?: boolean;
 }
 
 /**
  * Convert a file path to a URL path.
  *
  * - Strips file extension
+ * - Converts `[...slug]` → `*` (checked BEFORE single-param so catch-alls aren't shadowed)
  * - Converts `[param]` → `:param`
- * - Converts `[...slug]` → `*`
  * - Converts `index` → `/`
  *
  * @example
@@ -99,29 +135,29 @@ export function filePathToUrlPath(filePath: string): string {
     // Normalize separators
     route = route.replace(/\\/g, '/');
 
-    // Convert [param] → :param
-    route = route.replace(/\[([^\].]+)\]/g, ':$1');
-
-    // Convert [...slug] → *
+    // Convert [...slug] → * FIRST so the single-param rule can't shadow it
     route = route.replace(/\[\.\.\.([^\]]+)\]/g, '*');
+
+    // Convert [param] → :param
+    route = route.replace(/\[([^\]/]+)\]/g, ':$1');
 
     // Handle pages prefix — strip "pages" and make root-relative
     if (route.startsWith('pages/')) {
-        route = route.slice(5); // remove "pages"
+        route = route.slice('pages/'.length);
+    } else if (route === 'pages') {
+        route = '';
     }
-    // Handle api prefix — keep "api"
-    // (no transformation needed)
 
     // Handle index files → parent path
     route = route.replace(/(^|\/)index$/, '');
 
     // Ensure leading slash
     if (!route.startsWith('/')) {
-        route = '/' + route;
+        route = `/${route}`;
     }
 
-    // Root case
-    if (route === '') {
+    // Root case (`/` + empty → `//` guard, empty → `/`)
+    if (route === '' || route === '//') {
         route = '/';
     }
 
@@ -130,6 +166,8 @@ export function filePathToUrlPath(filePath: string): string {
 
 /**
  * Scan a directory for route files and return discovered routes.
+ * Import failures throw (fail-loud); files with no handlers are skipped
+ * with a warning so stray non-route files don't break the boot.
  *
  * @param routesDir - Absolute path to the routes directory (e.g., `<project>/src/routes`)
  * @param mode - Application mode
@@ -151,78 +189,36 @@ export async function scanRoutes(
 
     for (const file of files) {
         const urlPath = filePathToUrlPath(file);
-        const type: 'api' | 'page' = file.startsWith('api/') ? 'api' : 'page';
+        const isApi = file.startsWith('api/');
+        const type: 'api' | 'page' = isApi ? 'api' : 'page';
 
         const absolutePath = path.resolve(routesDir, file);
-        const fileUrl = pathToFileURL(absolutePath).href;
 
-        // Dynamically import the route module
+        // Dynamically import the route module (fail-loud on broken code)
         let mod: Record<string, unknown>;
         try {
-            if (vite && mode === 'development') {
-                mod = await vite.ssrLoadModule(absolutePath);
-            } else {
-                mod = await import(fileUrl);
-            }
+            mod = await loadRouteModule(absolutePath, mode === 'development' ? vite : undefined);
         } catch (err) {
-            console.warn(`[moria] Failed to load route: ${file}`, err);
+            throw new Error(`[moria] Failed to load route: ${file}: ${(err as Error).message}`);
+        }
+
+        const classified = classifyModule(mod, isApi);
+        if (classified.kind === 'empty') {
+            console.warn(`[moria] Route file has no handlers: ${file}`);
             continue;
         }
 
-        if (type === 'page') {
-            // ─── Page route: expects default Mithril component ───────
-            const component = mod.default;
-            const getServerData = typeof mod.getServerData === 'function'
-                ? mod.getServerData as GetServerData
-                : undefined;
-
-            // Page routes can also export raw HTTP handlers (backward compat)
-            if (component && typeof component === 'object' && 'view' in component) {
-                routes.push({
-                    filePath: file,
-                    urlPath,
-                    type: 'page',
-                    methods: {},
-                    component,
-                    getServerData,
-                });
-                continue;
-            }
-
-            // Fallback: if default export is a function, treat as API-style handler
-            if (typeof component === 'function') {
-                routes.push({
-                    filePath: file,
-                    urlPath,
-                    type: 'page',
-                    methods: { get: component as RouteHandler },
-                });
-                continue;
-            }
-
-            // Also check for named HTTP method exports
-            const methods = extractMethods(mod);
-            if (Object.keys(methods).length > 0) {
-                routes.push({ filePath: file, urlPath, type: 'page', methods });
-                continue;
-            }
-
-            console.warn(`[moria] Page route has no component or handlers: ${file}`);
+        if (classified.kind === 'component') {
+            routes.push({
+                filePath: file,
+                urlPath,
+                type: 'page',
+                methods: {},
+                component: classified.component,
+                getServerData: classified.getServerData,
+            });
         } else {
-            // ─── API route: expects named HTTP method exports ────────
-            const methods = extractMethods(mod);
-
-            // Also support default export as GET handler
-            if (typeof mod.default === 'function' && !methods.get) {
-                methods.get = mod.default as RouteHandler;
-            }
-
-            if (Object.keys(methods).length === 0) {
-                console.warn(`[moria] Route file has no handlers: ${file}`);
-                continue;
-            }
-
-            routes.push({ filePath: file, urlPath, type: 'api', methods });
+            routes.push({ filePath: file, urlPath, type, methods: classified.methods });
         }
     }
 
@@ -251,8 +247,12 @@ export async function registerRoutes(
     const { renderToString } = await import('@moriajs/renderer');
     const { getHtmlScripts } = await import('./vite.js');
 
+    // Resolve client entry ONCE (not per-route fs.existsSync)
+    const rootDir = config.rootDir ?? process.cwd();
+    const clientEntry = config.vite?.clientEntry ?? resolveClientEntry(undefined, rootDir).urlPath;
+
     // ─── Scan file-based middleware ──────────────────────────
-    const middlewareEntries = await scanMiddleware(routesDir);
+    const middlewareEntries = await scanMiddleware(routesDir, mode === 'development' ? vite : undefined);
     if (middlewareEntries.length > 0) {
         server.log.info(
             `Found ${middlewareEntries.length} middleware file(s): ${middlewareEntries.map((m) => m.scope || '/').join(', ')}`
@@ -268,11 +268,6 @@ export async function registerRoutes(
         if (route.component) {
             const component = route.component;
             const getServerData = route.getServerData;
-            // Smarter default for client entry: check for .ts then .js
-            const defaultEntry = fs.existsSync(path.join(config.rootDir || process.cwd(), 'src/entry-client.ts'))
-                ? '/src/entry-client.ts'
-                : '/src/entry-client.js';
-            const clientEntry = config.vite?.clientEntry ?? defaultEntry;
 
             server.route({
                 method: 'GET',
@@ -280,19 +275,21 @@ export async function registerRoutes(
                 preHandler,
                 handler: async (request: FastifyRequest, reply: FastifyReply) => {
                     // Load server data if available
-                    let initialData: Record<string, unknown> = {
+                    const initialData: Record<string, unknown> = {
                         _moria_page: route.filePath,
                     };
                     if (getServerData) {
-                        const serverData = await getServerData(request);
+                        const serverData = (await getServerData(request)) as Record<string, unknown>;
                         // Prevent user data from overwriting internal routing metadata
-                        const { _moria_page: _, ...safeServerData } = serverData as Record<string, unknown>;
+                        const { _moria_page: _ignored, ...safeServerData } = serverData ?? {};
                         Object.assign(initialData, safeServerData);
                     }
 
                     const scriptTags = await getHtmlScripts(mode, config);
 
-                    const html = await renderToString(component, {
+                    const html = await renderToString(
+                        component as import('@moriajs/renderer').MithrilComponent,
+                        {
                         title: (component as { title?: string }).title ?? 'MoriaJS App',
                         initialData,
                         mode,
@@ -312,7 +309,7 @@ export async function registerRoutes(
         // ─── API / raw handler routes ────────────────────────────
         for (const [method, handler] of Object.entries(route.methods)) {
             server.route({
-                method: method.toUpperCase() as Uppercase<string>,
+                method: method.toUpperCase() as HTTPMethods,
                 url: route.urlPath,
                 preHandler,
                 handler: handler as RouteHandler,
