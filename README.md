@@ -481,6 +481,21 @@ moria generate     # Generate routes, components, models
 
 ## Changelog
 
+### v0.4.41 (2026)
+
+**Code Quality (thermo-nuclear review cleanup)**
+- Decomposed all oversized modules — no maintained file over 350 lines: `create-moria` 944→101-line orchestrator (`templates/`, `scaffold.ts`, `options.ts`; TS/JS template duplication deleted via lang parameter), `auth` 361→22-line barrel (`plugin`/`guards`/`oauth-routes`/`cookies`), `ui` 359→31-line barrel (`toast`/`modal`/`confirm`)
+- `db`: Pongo/Mongo adapters unified under a shared `DocumentAdapter` base; typed `DocumentFilter`/`DocumentData` (was `any`); `MoriaDB` kept as the public API and now owns the non-empty-filter guards
+- `core`: `createApp` split into helpers (helmet options deep-merge, explicit idempotent `app.routes()` instead of routing hidden in `listen()`); router `classifyModule` dispatcher, `[...slug]` catch-all order fix, fail-loud route loads; canonical `core/assets.ts` for client-entry/manifest/script-tag resolution reused by vite/router/CLI
+- `renderer`: static imports (was `Function('return import...')` hack), longest-first page matcher (no `index` hijacking), single `dynamicHyperscript` boundary helper
+- `cli`: fail-loud `loadConfig` (broken config throws instead of silently booting with defaults), single `bootServer` flow for `dev`/`start`, `generate` exits 1 until implemented
+
+**Tests**
+- 45 `node:test` tests added across all packages (core 14, renderer 8, db 7, auth 6, create-moria 6, cli 2, ui 2); `pnpm test` wired per package
+
+**Repo Hygiene**
+- Generated scaffold fixtures (`test-app-v3`/`v5`, `test-app/`) untracked and gitignored; `create-moria` file count derived from actual writes (was hardcoded)
+
 ### v0.4.40 (2026)
 
 **Security**
